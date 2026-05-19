@@ -1,15 +1,29 @@
+"""High-level pricing API -- backwards-compatible wrapper around methods.
+
+The original ``price_portfolio`` function is preserved for callers that
+don't need to choose a method explicitly.  Internally it delegates to
+:class:`IntrinsicPricing`.
+
+For research use, prefer ``vpp_pricing.methods`` and
+``vpp_pricing.comparison`` directly.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Iterable
 
 from vpp_pricing.market import MarketData
+from vpp_pricing.methods.base import PricingResult
+from vpp_pricing.methods.intrinsic import IntrinsicPricing
 from vpp_pricing.portfolio import VirtualPowerPlant
 from vpp_pricing.results import PortfolioDispatch
 
 
 @dataclass(frozen=True)
 class PriceQuote:
+    """Legacy result type -- wraps a PricingResult for backward compat."""
+
     portfolio_name: str
     expected_cashflow_eur: float
     cashflow_at_risk_eur: float
@@ -44,67 +58,22 @@ def price_portfolio(
     risk_aversion: float = 0.0,
     alpha: float = 0.05,
 ) -> PriceQuote:
-    if risk_aversion < 0:
-        raise ValueError("risk_aversion must not be negative")
-    if not 0 < alpha <= 1:
-        raise ValueError("alpha must be in (0, 1]")
+    """Run intrinsic pricing and return a legacy PriceQuote.
 
+    This preserves the original API.  For multi-method comparisons use
+    :func:`vpp_pricing.comparison.compare_methods`.
+    """
     market_list = list(markets)
-    scenario_results = tuple(portfolio.dispatch(market) for market in market_list)
-    if not scenario_results:
-        raise ValueError("at least one market scenario is required")
-
-    probabilities = _normalized_probabilities([m.probability for m in market_list])
-
-    cashflows = [result.total_cashflow_eur for result in scenario_results]
-    expected = sum(p * value for p, value in zip(probabilities, cashflows))
-    car = _weighted_quantile(cashflows, probabilities, alpha)
-    cvar = _weighted_cvar(cashflows, probabilities, alpha)
-    downside = max(0.0, expected - cvar)
-    risk_adjusted = expected - risk_aversion * downside
-
+    result = IntrinsicPricing().price(
+        portfolio, market_list, risk_aversion=risk_aversion, alpha=alpha
+    )
     return PriceQuote(
-        portfolio_name=portfolio.name,
-        expected_cashflow_eur=expected,
-        cashflow_at_risk_eur=car,
-        conditional_value_at_risk_eur=cvar,
-        risk_adjusted_value_eur=risk_adjusted,
+        portfolio_name=result.portfolio_name,
+        expected_cashflow_eur=result.expected_value_eur,
+        cashflow_at_risk_eur=result.cashflow_at_risk_eur,
+        conditional_value_at_risk_eur=result.conditional_value_at_risk_eur,
+        risk_adjusted_value_eur=result.risk_adjusted_value_eur,
         risk_aversion=risk_aversion,
         alpha=alpha,
-        scenario_results=scenario_results,
+        scenario_results=result.scenario_results,
     )
-
-
-def _normalized_probabilities(probabilities: list[float | None]) -> list[float]:
-    numeric = [float(p) if p is not None else 0.0 for p in probabilities]
-    total = sum(numeric)
-    if total <= 0:
-        return [1.0 / len(numeric) for _ in numeric]
-    return [p / total for p in numeric]
-
-
-def _weighted_quantile(values: list[float], probabilities: list[float], alpha: float) -> float:
-    ordered = sorted(zip(values, probabilities), key=lambda item: item[0])
-    cumulative = 0.0
-    for value, probability in ordered:
-        cumulative += probability
-        if cumulative >= alpha:
-            return value
-    return ordered[-1][0]
-
-
-def _weighted_cvar(values: list[float], probabilities: list[float], alpha: float) -> float:
-    ordered = sorted(zip(values, probabilities), key=lambda item: item[0])
-    remaining = alpha
-    weighted_sum = 0.0
-    used_probability = 0.0
-    for value, probability in ordered:
-        take = min(probability, remaining)
-        if take <= 0:
-            break
-        weighted_sum += value * take
-        used_probability += take
-        remaining -= take
-    if used_probability <= 0:
-        return ordered[0][0]
-    return weighted_sum / used_probability

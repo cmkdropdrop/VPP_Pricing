@@ -13,85 +13,177 @@ from vpp_pricing.pricing import price_portfolio
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vpp-price",
-        description="Model and price Virtual Power Plant portfolios.",
+        description="VPP Pricing Research Toolkit -- model, price and compare "
+        "Virtual Power Plant portfolios under different valuation methods.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    price_parser = subparsers.add_parser("price", help="price a VPP portfolio")
-    price_parser.add_argument("portfolio_json", help="path to portfolio JSON")
-    price_parser.add_argument("market_csv", help="path to market price CSV")
-    price_parser.add_argument(
-        "--price-column", default="price_eur_per_mwh", help="CSV price column"
+    # ---- price (legacy single-method) ----
+    price_parser = subparsers.add_parser(
+        "price", help="price a VPP portfolio (intrinsic method)"
     )
-    price_parser.add_argument(
-        "--timestamp-column", default="timestamp", help="CSV timestamp column"
-    )
-    price_parser.add_argument(
-        "--scenario-column", default=None, help="optional CSV scenario column"
-    )
-    price_parser.add_argument(
-        "--probability-column", default=None, help="optional CSV probability column"
-    )
-    price_parser.add_argument(
-        "--timestep-hours", type=float, default=1.0, help="interval length in hours"
-    )
-    price_parser.add_argument(
-        "--risk-aversion",
-        type=float,
-        default=0.0,
-        help="CVaR penalty weight for risk-adjusted value",
-    )
-    price_parser.add_argument(
-        "--alpha",
-        type=float,
-        default=0.05,
-        help="lower-tail probability for cashflow-at-risk and CVaR",
-    )
-    price_parser.add_argument(
-        "--output", default=None, help="optional path for JSON report"
-    )
+    _add_common_args(price_parser)
     price_parser.add_argument(
         "--no-timeseries",
         action="store_true",
         help="omit interval-level data from JSON output",
     )
 
+    # ---- compare (multi-method research) ----
+    compare_parser = subparsers.add_parser(
+        "compare", help="run multiple pricing methods side-by-side"
+    )
+    _add_common_args(compare_parser)
+    compare_parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=["intrinsic", "rolling_intrinsic", "monte_carlo"],
+        help="pricing methods to compare (default: all three)",
+    )
+    compare_parser.add_argument(
+        "--window-hours",
+        type=int,
+        default=6,
+        help="look-ahead window for rolling intrinsic (hours)",
+    )
+    compare_parser.add_argument(
+        "--mc-paths",
+        type=int,
+        default=200,
+        help="number of Monte-Carlo price paths",
+    )
+    compare_parser.add_argument(
+        "--mc-volatility",
+        type=float,
+        default=0.15,
+        help="annualised volatility for MC price simulation",
+    )
+    compare_parser.add_argument(
+        "--mc-seed",
+        type=int,
+        default=42,
+        help="random seed for reproducibility",
+    )
+
     return parser
+
+
+def _add_common_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("portfolio_json", help="path to portfolio JSON")
+    parser.add_argument("market_csv", help="path to market price CSV")
+    parser.add_argument(
+        "--price-column", default="price_eur_per_mwh", help="CSV price column"
+    )
+    parser.add_argument(
+        "--timestamp-column", default="timestamp", help="CSV timestamp column"
+    )
+    parser.add_argument(
+        "--scenario-column", default=None, help="optional CSV scenario column"
+    )
+    parser.add_argument(
+        "--probability-column", default=None, help="optional CSV probability column"
+    )
+    parser.add_argument(
+        "--timestep-hours", type=float, default=1.0, help="interval length in hours"
+    )
+    parser.add_argument(
+        "--risk-aversion",
+        type=float,
+        default=0.0,
+        help="CVaR penalty weight for risk-adjusted value",
+    )
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=0.05,
+        help="lower-tail probability for CaR and CVaR",
+    )
+    parser.add_argument(
+        "--output", default=None, help="optional path for JSON report"
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    portfolio = VirtualPowerPlant.from_json(args.portfolio_json)
+    markets = load_market_csv(
+        args.market_csv,
+        price_column=args.price_column,
+        timestamp_column=args.timestamp_column,
+        scenario_column=args.scenario_column,
+        probability_column=args.probability_column,
+        timestep_hours=args.timestep_hours,
+    )
+
     if args.command == "price":
-        portfolio = VirtualPowerPlant.from_json(args.portfolio_json)
-        markets = load_market_csv(
-            args.market_csv,
-            price_column=args.price_column,
-            timestamp_column=args.timestamp_column,
-            scenario_column=args.scenario_column,
-            probability_column=args.probability_column,
-            timestep_hours=args.timestep_hours,
-        )
-        quote = price_portfolio(
-            portfolio,
-            markets,
-            risk_aversion=args.risk_aversion,
-            alpha=args.alpha,
-        )
-        payload = quote.to_dict(include_timeseries=not args.no_timeseries)
-
-        if args.output:
-            output_path = Path(args.output)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with output_path.open("w", encoding="utf-8") as handle:
-                json.dump(payload, handle, indent=2)
-
-        _print_summary(payload)
-        return 0
+        return _cmd_price(args, portfolio, markets)
+    if args.command == "compare":
+        return _cmd_compare(args, portfolio, markets)
 
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _cmd_price(args, portfolio, markets) -> int:
+    quote = price_portfolio(
+        portfolio,
+        markets,
+        risk_aversion=args.risk_aversion,
+        alpha=args.alpha,
+    )
+    payload = quote.to_dict(include_timeseries=not args.no_timeseries)
+
+    if args.output:
+        _write_json(payload, args.output)
+
+    _print_summary(payload)
+    return 0
+
+
+def _cmd_compare(args, portfolio, markets) -> int:
+    from vpp_pricing.comparison import compare_methods
+    from vpp_pricing.methods import get_method
+
+    method_instances = []
+    for name in args.methods:
+        if name == "rolling_intrinsic":
+            method_instances.append(get_method(name, window_hours=args.window_hours))
+        elif name == "monte_carlo":
+            method_instances.append(
+                get_method(
+                    name,
+                    num_paths=args.mc_paths,
+                    volatility=args.mc_volatility,
+                    seed=args.mc_seed,
+                )
+            )
+        else:
+            method_instances.append(get_method(name))
+
+    result = compare_methods(
+        portfolio,
+        markets,
+        method_instances,
+        risk_aversion=args.risk_aversion,
+        alpha=args.alpha,
+    )
+
+    payload = result.to_dict(include_timeseries=False)
+    if args.output:
+        _write_json(payload, args.output)
+
+    _print_comparison(result)
+    return 0
+
+
+def _write_json(payload: dict, path: str) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    print(f"Report written to {output_path}")
 
 
 def _print_summary(payload: dict) -> None:
@@ -106,6 +198,42 @@ def _print_summary(payload: dict) -> None:
         print(f"Base net export: {metrics['net_export_mwh']:.2f} MWh")
         print(f"Base peak export: {metrics['peak_export_mw']:.2f} MW")
         print(f"Base peak import: {metrics['peak_import_mw']:.2f} MW")
+
+
+def _print_comparison(result) -> None:
+    from vpp_pricing.comparison import ComparisonResult
+
+    print(f"\n{'=' * 72}")
+    print(f"  VPP PRICING METHOD COMPARISON -- {result.portfolio_name}")
+    print(f"{'=' * 72}")
+    print(f"  Base scenarios: {result.num_scenarios}")
+    print()
+
+    header = f"  {'Method':<22} {'E[V] EUR':>12} {'CaR EUR':>12} {'CVaR EUR':>12} {'RiskAdj EUR':>12}"
+    print(header)
+    print(f"  {'-' * 70}")
+
+    for row in result.summary_table():
+        print(
+            f"  {row['method']:<22} "
+            f"{row['expected_value_eur']:>12.2f} "
+            f"{row['CaR_eur']:>12.2f} "
+            f"{row['CVaR_eur']:>12.2f} "
+            f"{row['risk_adj_eur']:>12.2f}"
+        )
+
+    # Delta analysis vs intrinsic
+    if "intrinsic" in result.results:
+        intrinsic_ev = result.results["intrinsic"].expected_value_eur
+        print(f"\n  Delta vs. intrinsic (perfect foresight):")
+        for name, res in result.results.items():
+            if name == "intrinsic":
+                continue
+            delta = res.expected_value_eur - intrinsic_ev
+            pct = (delta / abs(intrinsic_ev) * 100) if intrinsic_ev != 0 else 0
+            print(f"    {name:<22} {delta:>+12.2f} EUR  ({pct:>+.1f}%)")
+
+    print(f"\n{'=' * 72}\n")
 
 
 if __name__ == "__main__":

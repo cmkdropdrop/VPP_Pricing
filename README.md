@@ -1,67 +1,169 @@
-# VPP Pricing
+# VPP Pricing Research Toolkit
 
-Ein kleines Python-Setup, um Virtual Power Plants (VPPs) zu modellieren, Dispatch-Entscheidungen zu simulieren und ein Portfolio gegen Marktpreise zu bepreisen.
+Forschungs-Framework zum systematischen Vergleich von Bewertungsmethoden fuer Virtual Power Plants (VPPs).
 
-Der Fokus liegt auf einem sauberen, erweiterbaren Kern:
+## Motivation
 
-- Asset-Modelle fuer Batterie, erneuerbare Erzeugung, flexible Last, fixe Last und dispatchbare Erzeuger
-- deterministische Dispatch-Optimierung fuer Batteriespeicher und flexible Lasten
-- Portfolio-Aggregation mit Cashflows, Export/Import, Capture Prices und Peak-Metriken
-- Szenario-Pricing mit Erwartungswert, 5%-Downside-Quantil und CVaR
-- CLI fuer schnelle Reports aus JSON-Portfolio und CSV-Preisen
+Die Bewertung eines VPP-Portfolios haengt stark von der gewaehlten Methodik ab. Dieses Toolkit implementiert drei gaengige Ansaetze als austauschbare Module und stellt ein Vergleichs-Framework bereit, um die Unterschiede quantitativ zu analysieren.
+
+## Implementierte Pricing-Methoden
+
+| Methode | Beschreibung | Staerken | Grenzen |
+|---|---|---|---|
+| **Intrinsic Value** | Perfekte Voraussicht ueber den gesamten Lieferzeitraum. Jedes Asset optimiert gegen die vollstaendige Preiskurve. | Obere Schranke, deterministisch, schnell | Ueberschaetzt realisierbaren Wert |
+| **Rolling Intrinsic** | Rollierende Optimierung mit begrenztem Vorhersagefenster. Nur die naechsten *n* Stunden sind bekannt, Commit nur fuer die aktuelle Stunde. | Realistischer als Full-Horizon, zeigt Informationsverlust | Innerhalb des Fensters weiterhin perfekte Voraussicht |
+| **Monte-Carlo Extrinsic** | Preispfad-Simulation (log-normal um Basiskurve), Dispatch gegen jeden Pfad, Verteilung der Ergebnisse. | Erfasst Optionswert und Streuung, volle Outcome-Distribution | Vereinfachtes Preismodell, rechenintensiver |
+
+## Projektstruktur
+
+```
+src/vpp_pricing/
+    __init__.py              # Public API
+    assets.py                # Asset-Modelle (Solar, Wind, Batterie, Last, Generator)
+    market.py                # Marktdaten und CSV-Import
+    portfolio.py             # Portfolio-Aggregation
+    results.py               # Dispatch- und Ergebnis-Datenstrukturen
+    pricing.py               # Legacy-API (delegiert an Intrinsic)
+    comparison.py            # Side-by-side Methodenvergleich
+    methods/
+        __init__.py          # Registry und get_method()
+        base.py              # PricingMethod Protocol, PricingResult
+        intrinsic.py         # Intrinsic Value
+        rolling_intrinsic.py # Rolling Intrinsic
+        monte_carlo.py       # Monte-Carlo Extrinsic
+tests/
+    test_assets.py
+    test_pricing.py
+examples/
+    sample_portfolio.json
+    data/
+        day_ahead_prices.csv
+        scenario_prices.csv
+```
 
 ## Schnellstart
 
-```powershell
-$env:PYTHONPATH="src"
-python -m vpp_pricing.cli price examples/sample_portfolio.json examples/data/day_ahead_prices.csv --output runner_outputs/vpp_report.json
-```
+```bash
+# Installation
+pip install -e ".[dev]"
 
-Alternativ nach Installation im Editable-Modus:
-
-```powershell
-python -m pip install -e .
+# Einzelbewertung (Intrinsic)
 vpp-price price examples/sample_portfolio.json examples/data/day_ahead_prices.csv
+
+# Methodenvergleich
+vpp-price compare examples/sample_portfolio.json examples/data/scenario_prices.csv \
+    --scenario-column scenario \
+    --probability-column probability
+
+# Vergleich mit Parametern
+vpp-price compare examples/sample_portfolio.json examples/data/scenario_prices.csv \
+    --scenario-column scenario \
+    --methods intrinsic rolling_intrinsic monte_carlo \
+    --window-hours 4 \
+    --mc-paths 500 \
+    --mc-volatility 0.20 \
+    --output runner_outputs/comparison.json
+
+# Tests
+pytest
 ```
 
-Tests:
+## CLI-Befehle
 
-```powershell
-$env:PYTHONPATH="src"
-python -m unittest discover -s tests
+### `vpp-price price`
+Klassische Einzelbewertung mit Intrinsic-Methode. Abwaertskompatibel zur vorherigen Version.
+
+### `vpp-price compare`
+Fuehrt mehrere Pricing-Methoden gegen dasselbe Portfolio aus und gibt eine Vergleichstabelle aus:
+
+```
+========================================================================
+  VPP PRICING METHOD COMPARISON -- Demo VPP
+========================================================================
+  Base scenarios: 3
+
+  Method                   E[V] EUR      CaR EUR     CVaR EUR  RiskAdj EUR
+  ----------------------------------------------------------------------
+  intrinsic                 1234.56       890.12       845.67      1234.56
+  rolling_intrinsic         1180.23       870.45       830.12      1180.23
+  monte_carlo               1210.89       780.34       720.56      1210.89
+
+  Delta vs. intrinsic (perfect foresight):
+    rolling_intrinsic              -54.33 EUR  (-4.4%)
+    monte_carlo                    -23.67 EUR  (-1.9%)
+========================================================================
 ```
 
-## Datenformate
+## Programmatische Nutzung
 
-Portfolio-Dateien sind JSON. Ein Asset hat immer `type` und `name`; weitere Felder haengen vom Asset-Typ ab:
+```python
+from vpp_pricing import (
+    VirtualPowerPlant,
+    load_market_csv,
+    compare_methods,
+    IntrinsicPricing,
+    RollingIntrinsicPricing,
+    MonteCarloPricing,
+)
 
-- `renewable`: `capacity_mw` plus `availability` oder `profile_mw`
-- `battery`: `capacity_mwh`, `power_mw`, `round_trip_efficiency`, `initial_soc_mwh`
-- `flexible_load`: `energy_mwh`, `min_power_mw`, `max_power_mw`
-- `fixed_load`: `profile_mw`
-- `generator`: `max_power_mw`, `marginal_cost_eur_per_mwh`
+portfolio = VirtualPowerPlant.from_json("examples/sample_portfolio.json")
+markets = load_market_csv(
+    "examples/data/scenario_prices.csv",
+    scenario_column="scenario",
+    probability_column="probability",
+)
 
-Preisdateien sind CSV mit mindestens:
+result = compare_methods(
+    portfolio,
+    markets,
+    methods=[
+        IntrinsicPricing(),
+        RollingIntrinsicPricing(window_hours=4),
+        MonteCarloPricing(num_paths=500, volatility=0.20, seed=42),
+    ],
+    risk_aversion=0.5,
+    alpha=0.05,
+)
 
-```csv
-timestamp,price_eur_per_mwh
-2026-01-01T00:00:00Z,52
+for row in result.summary_table():
+    print(f"{row['method']}: E[V]={row['expected_value_eur']:.2f} EUR")
 ```
 
-Optional kann eine Spalte `scenario` genutzt werden. Dann erstellt die CLI mehrere Marktszenarien:
+## Eigene Pricing-Methode hinzufuegen
 
-```powershell
-python -m vpp_pricing.cli price portfolio.json prices.csv --scenario-column scenario
+Jede Klasse, die das `PricingMethod`-Protocol implementiert, ist kompatibel:
+
+```python
+from dataclasses import dataclass
+from vpp_pricing.methods.base import PricingMethod, PricingResult
+from vpp_pricing.market import MarketData
+from vpp_pricing.portfolio import VirtualPowerPlant
+
+@dataclass
+class MyCustomPricing:
+    @property
+    def name(self) -> str:
+        return "my_custom"
+
+    def price(
+        self,
+        portfolio: VirtualPowerPlant,
+        markets: list[MarketData],
+        *,
+        risk_aversion: float = 0.0,
+        alpha: float = 0.05,
+    ) -> PricingResult:
+        # Eigene Bewertungslogik hier
+        ...
 ```
-
-## Architektur
-
-- `src/vpp_pricing/assets.py`: Asset-Dispatch-Logik
-- `src/vpp_pricing/portfolio.py`: Portfolio-Laden und Aggregation
-- `src/vpp_pricing/market.py`: CSV-Marktdaten und Szenarien
-- `src/vpp_pricing/pricing.py`: Risiko- und Szenario-Bewertung
-- `src/vpp_pricing/cli.py`: Kommandozeileninterface
 
 ## Modellannahmen
 
-Dieses Setup ist ein bewusst pragmatisches Basismodell. Es modelliert Energie-Cashflows gegen exogene Preise. Nicht enthalten sind Netzrestriktionen, Bilanzkreisabweichungen, Intraday-Liquiditaet, Redispatch, Garantieprodukte, Nichtlinearitaeten, Startkosten oder regulatorische Abgaben. Diese Punkte koennen spaeter als neue Asset-Klassen, Nebenbedingungen oder Pricing-Layer ergaenzt werden.
+Dieses Toolkit modelliert Energie-Cashflows gegen exogene Preise. Bewusst nicht enthalten (aber als Erweiterung moeglich):
+
+- Netzrestriktionen und Engpassmanagement
+- Bilanzkreisabweichungen und Ausgleichsenergie
+- Intraday-Liquiditaet und Bid-Ask-Spreads
+- Start-/Stoppkosten und Mindeststillstandszeiten
+- Regulatorische Abgaben (EEG, Netzentgelte)
+- Kalibrierte stochastische Preismodelle (Mean-Reversion, Spruenge)
