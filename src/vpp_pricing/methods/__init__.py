@@ -5,6 +5,7 @@ from vpp_pricing.methods.gan import GANPricing
 from vpp_pricing.methods.intrinsic import IntrinsicPricing
 from vpp_pricing.methods.rolling_intrinsic import RollingIntrinsicPricing
 from vpp_pricing.methods.monte_carlo import MonteCarloPricing
+from vpp_pricing.methods.reinforcement_learning import ReinforcementLearningPricing
 
 __all__ = [
     "GANPricing",
@@ -12,6 +13,7 @@ __all__ = [
     "PricingResult",
     "IntrinsicPricing",
     "MonteCarloPricing",
+    "ReinforcementLearningPricing",
     "RollingIntrinsicPricing",
 ]
 
@@ -20,6 +22,7 @@ REGISTRY: dict[str, type[PricingMethod]] = {
     "intrinsic": IntrinsicPricing,
     "rolling_intrinsic": RollingIntrinsicPricing,
     "monte_carlo": MonteCarloPricing,
+    "rl": ReinforcementLearningPricing,
 }
 
 

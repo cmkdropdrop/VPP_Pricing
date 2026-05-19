@@ -306,17 +306,18 @@ def plot_multi_portfolio_comparison(results_dict: dict, filename: str):
 
 
 def plot_cross_portfolio_dispatch_diagnostics(results_dict: dict, filename: str):
-    """Show capture-price and cycling diagnostics across portfolio archetypes."""
+    """Show VPP operating diagnostics across portfolio archetypes."""
     portfolios = list(results_dict.keys())
     methods = ["intrinsic", "rolling_intrinsic", "monte_carlo", "gan"]
     x = range(len(portfolios))
     width = min(0.8 / len(methods), 0.22)
 
-    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
     for i, method in enumerate(methods):
         capture_prices = []
-        cycles = []
+        renewable_curtailment = []
+        flexible_load_value = []
         for name in portfolios:
             row = next(
                 r
@@ -324,7 +325,8 @@ def plot_cross_portfolio_dispatch_diagnostics(results_dict: dict, filename: str)
                 if r["method"] == method
             )
             capture_prices.append(row["capture_price_eur_per_mwh"])
-            cycles.append(row["battery_equivalent_cycles"])
+            renewable_curtailment.append(row["renewable_curtailed_mwh"])
+            flexible_load_value.append(row["flexible_load_value_eur"])
 
         offset = [xi + (i - (len(methods) - 1) / 2) * width for xi in x]
         axes[0].bar(
@@ -338,7 +340,16 @@ def plot_cross_portfolio_dispatch_diagnostics(results_dict: dict, filename: str)
         )
         axes[1].bar(
             offset,
-            cycles,
+            renewable_curtailment,
+            width,
+            label=METHOD_LABELS[method],
+            color=METHOD_COLORS[method],
+            alpha=0.85,
+            edgecolor="white",
+        )
+        axes[2].bar(
+            offset,
+            flexible_load_value,
             width,
             label=METHOD_LABELS[method],
             color=METHOD_COLORS[method],
@@ -349,8 +360,11 @@ def plot_cross_portfolio_dispatch_diagnostics(results_dict: dict, filename: str)
     axes[0].set_title("Weighted Capture Price")
     axes[0].set_ylabel("EUR/MWh")
     axes[0].yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
-    axes[1].set_title("Expected Battery Equivalent Cycles")
-    axes[1].set_ylabel("cycles over horizon")
+    axes[1].set_title("Renewable Curtailment")
+    axes[1].set_ylabel("MWh over horizon")
+    axes[2].set_title("Flexible Load Optimisation Value")
+    axes[2].set_ylabel("EUR over horizon")
+    axes[2].yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
 
     for ax in axes:
         ax.set_xticks(list(x))
@@ -465,7 +479,7 @@ def plot_mc_policy_comparison(portfolio, markets, intrinsic_ev: float, filename:
     axes[1].legend(fontsize=9)
 
     fig.suptitle(
-        "Merchant BESS - Monte Carlo Dispatch Policy Effect",
+        "Storage Stress Case - Monte Carlo Dispatch Policy Effect",
         fontsize=13,
         fontweight="bold",
         y=1.02,
@@ -607,7 +621,7 @@ def main():
     plot_dispatch_profile(
         all_results["Merchant BESS"],
         scenario_idx=4,  # scarcity scenario
-        title="Merchant BESS - Scarcity Scenario Dispatch",
+        title="Storage Stress Case - Scarcity Scenario Dispatch",
         filename="dispatch_merchant_scarcity.png",
     )
 
@@ -692,7 +706,7 @@ def main():
                linestyle="--", label="Intrinsic (100%)", alpha=0.7)
     ax.set_xlabel("Look-Ahead Window (hours)", fontsize=11)
     ax.set_ylabel("Capture Ratio (%)", fontsize=11)
-    ax.set_title("Merchant BESS - Rolling Intrinsic Window Sensitivity",
+    ax.set_title("Storage Stress Case - Rolling Intrinsic Window Sensitivity",
                  fontsize=13, fontweight="bold")
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
@@ -740,7 +754,7 @@ def main():
     ax2.grid(True, alpha=0.3)
     ax2.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
 
-    fig.suptitle("Merchant BESS - Monte Carlo Volatility Sensitivity",
+    fig.suptitle("Storage Stress Case - Monte Carlo Volatility Sensitivity",
                  fontsize=13, fontweight="bold", y=1.02)
     fig.tight_layout()
     fig.savefig(

@@ -24,6 +24,10 @@ class PracticalApproachTests(unittest.TestCase):
             approach_for_method("gan").id,
             "ml_gan_scenario_generation",
         )
+        self.assertEqual(
+            approach_for_method("rl").id,
+            "tabular_rl_dispatch_baseline",
+        )
 
     def test_catalog_contains_risks_and_validation_focus(self):
         approach = get_practical_approach("balancing_ancillary_services")
@@ -37,7 +41,7 @@ class PracticalApproachTests(unittest.TestCase):
 
         self.assertEqual(
             {approach.implemented_method for approach in approaches},
-            {"intrinsic", "rolling_intrinsic", "monte_carlo", "gan"},
+            {"intrinsic", "rolling_intrinsic", "monte_carlo", "gan", "rl"},
         )
 
     def test_approaches_cli_json_does_not_require_market_inputs(self):
@@ -50,7 +54,7 @@ class PracticalApproachTests(unittest.TestCase):
 
         payload = json.loads(buffer.getvalue())
         self.assertEqual(exit_code, 0)
-        self.assertEqual(len(payload), 4)
+        self.assertEqual(len(payload), 5)
         self.assertEqual(payload[0]["id"], "benchmark_intrinsic")
 
 

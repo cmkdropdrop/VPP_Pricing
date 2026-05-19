@@ -42,6 +42,41 @@ def _simple_markets() -> list[MarketData]:
     ]
 
 
+def _mixed_vpp_portfolio() -> VirtualPowerPlant:
+    return VirtualPowerPlant.from_dict(
+        {
+            "name": "mixed_vpp",
+            "assets": [
+                {
+                    "type": "renewable",
+                    "name": "solar",
+                    "capacity_mw": 2.0,
+                    "availability": [0.0, 0.6, 1.0, 0.2],
+                    "curtail_below_price_eur_per_mwh": 0.0,
+                },
+                {
+                    "type": "fixed_load",
+                    "name": "site_load",
+                    "profile_mw": [0.8, 0.8, 0.8, 0.8],
+                },
+                {
+                    "type": "flexible_load",
+                    "name": "ev_pool",
+                    "energy_mwh": 1.0,
+                    "min_power_mw": 0.0,
+                    "max_power_mw": 1.0,
+                },
+                {
+                    "type": "generator",
+                    "name": "peaker",
+                    "max_power_mw": 0.5,
+                    "marginal_cost_eur_per_mwh": 80.0,
+                },
+            ],
+        }
+    )
+
+
 class ComparisonSummaryTests(unittest.TestCase):
     def test_capture_ratio_is_present_and_correct(self):
         portfolio = _simple_portfolio()
@@ -145,6 +180,30 @@ class ComparisonSummaryTests(unittest.TestCase):
         payload = result.to_dict()
         self.assertIn("mispricing_warnings", payload)
         self.assertIsInstance(payload["mispricing_warnings"], list)
+
+    def test_summary_includes_portfolio_level_vpp_diagnostics(self):
+        result = compare_methods(
+            _mixed_vpp_portfolio(),
+            _simple_markets(),
+            [IntrinsicPricing()],
+        )
+        row = result.summary_table()[0]
+        diagnostics = result.results["intrinsic"].diagnostics
+
+        self.assertEqual(
+            row["asset_type_counts"],
+            {
+                "fixed_load": 1,
+                "flexible_load": 1,
+                "generator": 1,
+                "renewable": 1,
+            },
+        )
+        self.assertIn("dispatch_cashflow_by_asset_type_eur", diagnostics)
+        self.assertIn("renewable", diagnostics["dispatch_export_mwh_by_asset_type"])
+        self.assertGreaterEqual(row["renewable_curtailed_mwh"], 0.0)
+        self.assertGreaterEqual(row["flexible_load_value_eur"], 0.0)
+        self.assertGreaterEqual(row["dispatchable_generation_mwh"], 0.0)
 
 
 if __name__ == "__main__":

@@ -86,7 +86,7 @@ PRACTICAL_APPROACHES: tuple[PracticalPricingApproach, ...] = (
             "VPP aggregators",
             "balance responsible parties",
             "renewable route-to-market providers",
-            "battery optimisers",
+            "flex portfolio operators",
         ),
         revenue_streams=(
             "day-ahead and intraday trading",
@@ -113,15 +113,16 @@ PRACTICAL_APPROACHES: tuple[PracticalPricingApproach, ...] = (
     ),
     PracticalPricingApproach(
         id="stochastic_merchant_bidding",
-        name="Stochastic merchant bidding / automated optimiser",
+        name="Stochastic VPP scenario pricing / automated optimiser",
         economic_role=(
-            "Probabilistic bid optimisation for merchant batteries and hybrid assets."
+            "Probabilistic portfolio valuation for VPP cashflows, optionality, "
+            "and tail-risk diagnostics."
         ),
         primary_users=(
-            "battery storage owners",
-            "renewable-plus-storage operators",
+            "VPP aggregators",
+            "renewable-plus-flex operators",
             "optimisation software vendors",
-            "merchant trading desks",
+            "trading and risk teams",
         ),
         revenue_streams=(
             "energy arbitrage",
@@ -134,7 +135,7 @@ PRACTICAL_APPROACHES: tuple[PracticalPricingApproach, ...] = (
         implementation_status="implemented baseline",
         implemented_method="monte_carlo",
         economic_relevance="high",
-        example_users=("Tesla Autobidder", "Fluence Mosaic", "KrakenFlex"),
+        example_users=("Next Kraftwerke", "Statkraft", "KrakenFlex"),
         mispricing_risks=(
             "wrong tail distribution for scarcity and negative-price events",
             "incorrect revenue stacking across mutually exclusive products",
@@ -148,17 +149,51 @@ PRACTICAL_APPROACHES: tuple[PracticalPricingApproach, ...] = (
         ),
     ),
     PracticalPricingApproach(
+        id="tabular_rl_dispatch_baseline",
+        name="Tabular RL dispatch baseline for battery assets",
+        economic_role=(
+            "Didactic state-based policy comparison for one flexible asset "
+            "class inside a broader VPP portfolio."
+        ),
+        primary_users=(
+            "research analysts",
+            "methodology reviewers",
+            "methodology reviewers",
+        ),
+        revenue_streams=("energy arbitrage", "dispatch value"),
+        markets=("day-ahead reference curves", "intraday reference curves"),
+        decision_style="tabular Q-learning over discretised price and SOC states",
+        implementation_status="implemented research baseline",
+        implemented_method="rl",
+        economic_relevance=(
+            "medium as a method appendix, low as a VPP-wide trading or bidding model"
+        ),
+        example_users=("research teams", "methodology reviewers"),
+        mispricing_risks=(
+            "state discretisation can hide economically relevant price structure",
+            "small scenario sets can overfit the learned table",
+            "no order-book, liquidity, DA/ID-bidding, or fill-risk model",
+            "in-sample policy value has no out-of-sample guarantee",
+        ),
+        validation_focus=(
+            "seed stability",
+            "SOC and power feasibility",
+            "value versus intrinsic and rolling benchmarks",
+            "sensitivity to state bins and training scenarios",
+        ),
+    ),
+    PracticalPricingApproach(
         id="ml_gan_scenario_generation",
         name="GAN scenario generation / ML price-path model",
         economic_role=(
-            "Data-driven scenario expansion for merchant valuation, scarcity tails, "
-            "negative prices, and stress testing."
+            "Data-driven scenario expansion for VPP cashflow valuation, scarcity "
+            "tails, negative prices, and stress testing."
         ),
         primary_users=(
             "quant research teams",
-            "merchant trading desks",
-            "battery optimisers",
-            "renewable-plus-storage operators",
+            "VPP aggregators",
+            "route-to-market analysts",
+            "renewable-plus-flex operators",
         ),
         revenue_streams=(
             "energy arbitrage",
@@ -174,7 +209,7 @@ PRACTICAL_APPROACHES: tuple[PracticalPricingApproach, ...] = (
             "high as a scenario-generation research tool, medium as a standalone "
             "valuation without out-of-sample validation"
         ),
-        example_users=("quant desks", "storage optimisers", "route-to-market analysts"),
+        example_users=("quant desks", "VPP analysts", "route-to-market analysts"),
         mispricing_risks=(
             "too few historical scenarios cause overfitting or mode collapse",
             "generated curves may violate regime constraints without calibration",

@@ -84,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help=(
-            "if set, dispatch MC paths with a rolling battery look-ahead window "
+            "if set, dispatch MC paths with a rolling VPP look-ahead window "
             "instead of full-path perfect foresight"
         ),
     )
@@ -123,9 +123,57 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help=(
-            "if set, dispatch GAN paths with a rolling battery look-ahead window "
+            "if set, dispatch GAN paths with a rolling VPP look-ahead window "
             "instead of full-path perfect foresight"
         ),
+    )
+    compare_parser.add_argument(
+        "--rl-episodes",
+        type=int,
+        default=500,
+        help="training episodes for the tabular RL battery baseline",
+    )
+    compare_parser.add_argument(
+        "--rl-learning-rate",
+        type=float,
+        default=0.20,
+        help="Q-learning update step size for RL",
+    )
+    compare_parser.add_argument(
+        "--rl-discount-factor",
+        type=float,
+        default=0.95,
+        help="future-reward discount factor for RL",
+    )
+    compare_parser.add_argument(
+        "--rl-epsilon",
+        type=float,
+        default=0.25,
+        help="initial epsilon-greedy exploration rate for RL",
+    )
+    compare_parser.add_argument(
+        "--rl-epsilon-decay",
+        type=float,
+        default=0.995,
+        help="per-episode epsilon decay for RL",
+    )
+    compare_parser.add_argument(
+        "--rl-soc-bins",
+        type=int,
+        default=11,
+        help="number of state-of-charge bins for RL",
+    )
+    compare_parser.add_argument(
+        "--rl-price-bins",
+        type=int,
+        default=8,
+        help="number of price quantile bins for RL",
+    )
+    compare_parser.add_argument(
+        "--rl-seed",
+        type=int,
+        default=42,
+        help="random seed for RL training",
     )
 
     validate_parser = subparsers.add_parser(
@@ -272,6 +320,20 @@ def _cmd_compare(args, portfolio, markets) -> int:
                     dispatch_window_hours=args.gan_dispatch_window_hours,
                 )
             )
+        elif name == "rl":
+            method_instances.append(
+                get_method(
+                    name,
+                    episodes=args.rl_episodes,
+                    learning_rate=args.rl_learning_rate,
+                    discount_factor=args.rl_discount_factor,
+                    epsilon=args.rl_epsilon,
+                    epsilon_decay=args.rl_epsilon_decay,
+                    soc_bins=args.rl_soc_bins,
+                    price_bins=args.rl_price_bins,
+                    seed=args.rl_seed,
+                )
+            )
         else:
             method_instances.append(get_method(name))
 
@@ -368,6 +430,14 @@ def _print_comparison(result) -> None:
     print(f"  VPP PRICING METHOD COMPARISON -- {result.portfolio_name}")
     print(f"{'=' * 110}")
     print(f"  Base scenarios: {result.num_scenarios}")
+    table = result.summary_table()
+    first_row = table[0] if table else {}
+    asset_counts = first_row.get("asset_type_counts") or {}
+    if asset_counts:
+        asset_mix = ", ".join(
+            f"{asset_type}={count}" for asset_type, count in asset_counts.items()
+        )
+        print(f"  Asset mix: {asset_mix}")
     print()
 
     header = (
@@ -377,7 +447,7 @@ def _print_comparison(result) -> None:
     print(header)
     print(f"  {'-' * 108}")
 
-    for row in result.summary_table():
+    for row in table:
         approach = row.get("practical_approach") or "-"
         capture = row.get("capture_ratio_pct")
         capture_str = f"{capture:>8.1f}%" if capture is not None else "       -"
@@ -391,20 +461,21 @@ def _print_comparison(result) -> None:
             f"{capture_str}"
         )
 
-    print(f"\n  Dispatch diagnostics:")
+    print(f"\n  Portfolio dispatch diagnostics:")
     print(
         f"  {'Method':<22} {'Export MWh':>11} {'Import MWh':>11} "
-        f"{'Capture EUR/MWh':>16} {'Neg-price exp':>14} {'Batt cycles':>12}"
+        f"{'Capture EUR/MWh':>16} {'RES curt.':>10} {'Flex EUR':>10} {'Batt cyc.':>10}"
     )
-    print(f"  {'-' * 96}")
-    for row in result.summary_table():
+    print(f"  {'-' * 104}")
+    for row in table:
         print(
             f"  {row['method']:<22} "
             f"{row['export_mwh']:>11.2f} "
             f"{row['import_mwh']:>11.2f} "
             f"{row['capture_price_eur_per_mwh']:>16.2f} "
-            f"{row['negative_price_export_mwh']:>14.2f} "
-            f"{row['battery_equivalent_cycles']:>12.2f}"
+            f"{row['renewable_curtailed_mwh']:>10.2f} "
+            f"{row['flexible_load_value_eur']:>10.2f} "
+            f"{row['battery_equivalent_cycles']:>10.2f}"
         )
 
     # Delta analysis vs intrinsic

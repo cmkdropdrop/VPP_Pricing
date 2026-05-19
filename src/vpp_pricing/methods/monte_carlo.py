@@ -35,7 +35,7 @@ from vpp_pricing.diagnostics import (
 )
 from vpp_pricing.market import MarketData, validate_market_scenarios
 from vpp_pricing.methods.base import PricingResult
-from vpp_pricing.methods.rolling_intrinsic import dispatch_with_rolling_battery_policy
+from vpp_pricing.methods.rolling_intrinsic import dispatch_with_rolling_vpp_policy
 from vpp_pricing.portfolio import VirtualPowerPlant
 from vpp_pricing.risk import (
     cashflow_distribution_diagnostics,
@@ -302,7 +302,7 @@ class MonteCarloPricing:
                 for path in all_paths
             ]
             results = tuple(
-                dispatch_with_rolling_battery_policy(portfolio, path, window)
+                dispatch_with_rolling_vpp_policy(portfolio, path, window)
                 for path, window in zip(all_paths, window_by_path)
             )
             dispatch_policy = "rolling_intrinsic_per_path"

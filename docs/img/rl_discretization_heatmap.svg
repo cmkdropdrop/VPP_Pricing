@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="430" viewBox="0 0 720 430">
+<rect width="100%" height="100%" fill="white"/>
+<text x="360.0" y="30.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#263238">RL discretisation sensitivity</text>
+<text x="360.0" y="52.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="400" fill="#546E7A">E[V] EUR, episodes=1,000, seed=42</text>
+<text x="186.0" y="63.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#263238">price 4</text>
+<text x="318.0" y="63.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#263238">price 8</text>
+<text x="450.0" y="63.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#263238">price 12</text>
+<text x="104.0" y="115.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#263238">SOC 5</text>
+<rect x="120" y="78" width="132" height="64" fill="#E2E9EA" stroke="white" stroke-width="2"/>
+<text x="186.0" y="106.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">50</text>
+<text x="186.0" y="126.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">0.5% cap</text>
+<rect x="252" y="78" width="132" height="64" fill="#9ABFBC" stroke="white" stroke-width="2"/>
+<text x="318.0" y="106.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">402</text>
+<text x="318.0" y="126.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">4.4% cap</text>
+<rect x="384" y="78" width="132" height="64" fill="#E5CDCD" stroke="white" stroke-width="2"/>
+<text x="450.0" y="106.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">-185</text>
+<text x="450.0" y="126.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">-2.0% cap</text>
+<text x="104.0" y="179.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#263238">SOC 9</text>
+<rect x="120" y="142" width="132" height="64" fill="#EAE3E5" stroke="white" stroke-width="2"/>
+<text x="186.0" y="170.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">-64</text>
+<text x="186.0" y="190.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">-0.7% cap</text>
+<rect x="252" y="142" width="132" height="64" fill="#7EAEA9" stroke="white" stroke-width="2"/>
+<text x="318.0" y="170.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">543</text>
+<text x="318.0" y="190.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">5.9% cap</text>
+<rect x="384" y="142" width="132" height="64" fill="#287C71" stroke="white" stroke-width="2"/>
+<text x="450.0" y="170.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="white">965</text>
+<text x="450.0" y="190.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="white">10.5% cap</text>
+<text x="104.0" y="243.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#263238">SOC 11</text>
+<rect x="120" y="206" width="132" height="64" fill="#EAE3E5" stroke="white" stroke-width="2"/>
+<text x="186.0" y="234.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">-64</text>
+<text x="186.0" y="254.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">-0.7% cap</text>
+<rect x="252" y="206" width="132" height="64" fill="#7EAEA9" stroke="white" stroke-width="2"/>
+<text x="318.0" y="234.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">543</text>
+<text x="318.0" y="254.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">5.9% cap</text>
+<rect x="384" y="206" width="132" height="64" fill="#E5CCCB" stroke="white" stroke-width="2"/>
+<text x="450.0" y="234.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">-194</text>
+<text x="450.0" y="254.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">-2.1% cap</text>
+<text x="104.0" y="307.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#263238">SOC 21</text>
+<rect x="120" y="270" width="132" height="64" fill="#EAE5E7" stroke="white" stroke-width="2"/>
+<text x="186.0" y="298.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">-52</text>
+<text x="186.0" y="318.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">-0.6% cap</text>
+<rect x="252" y="270" width="132" height="64" fill="#D6837D" stroke="white" stroke-width="2"/>
+<text x="318.0" y="298.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#263238">-595</text>
+<text x="318.0" y="318.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#263238">-6.5% cap</text>
+<rect x="384" y="270" width="132" height="64" fill="#6DA59E" stroke="white" stroke-width="2"/>
+<text x="450.0" y="298.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="white">624</text>
+<text x="450.0" y="318.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="white">6.8% cap</text>
+<rect x="120" y="366" width="24" height="16" fill="#C94035"/>
+<text x="154.0" y="379.0" text-anchor="start" font-family="Arial, sans-serif" font-size="11" font-weight="400" fill="#263238">negative</text>
+<rect x="250" y="366" width="24" height="16" fill="#ECEFF1" stroke="#B0BEC5"/>
+<text x="284.0" y="379.0" text-anchor="start" font-family="Arial, sans-serif" font-size="11" font-weight="400" fill="#263238">near zero</text>
+<rect x="390" y="366" width="24" height="16" fill="#287C71"/>
+<text x="424.0" y="379.0" text-anchor="start" font-family="Arial, sans-serif" font-size="11" font-weight="400" fill="#263238">positive</text>
+</svg>

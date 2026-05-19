@@ -66,6 +66,10 @@ class ComparisonResult:
                     "method": name,
                     "practical_approach": approach.id if approach else None,
                     "economic_role": approach.economic_role if approach else None,
+                    "asset_type_counts": result.diagnostics.get(
+                        "dispatch_asset_type_counts",
+                        {},
+                    ),
                     "expected_value_eur": round(result.expected_value_eur, 2),
                     "std_dev_eur": round(
                         float(result.diagnostics.get("cashflow_std_eur", 0.0)), 2
@@ -101,6 +105,33 @@ class ComparisonResult:
                         float(
                             result.diagnostics.get(
                                 "dispatch_negative_price_export_mwh", 0.0
+                            )
+                        ),
+                        3,
+                    ),
+                    "renewable_curtailed_mwh": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_renewable_curtailed_mwh",
+                                0.0,
+                            )
+                        ),
+                        3,
+                    ),
+                    "flexible_load_value_eur": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_flexible_load_value_eur",
+                                0.0,
+                            )
+                        ),
+                        2,
+                    ),
+                    "dispatchable_generation_mwh": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_dispatchable_generation_mwh",
+                                0.0,
                             )
                         ),
                         3,
@@ -218,6 +249,27 @@ class ComparisonResult:
                 warnings.append(
                     "gan: generated curve diversity materially exceeds training "
                     "data; synthetic tails may be over-dispersed"
+                )
+
+        rl = self.results.get("rl")
+        if rl is not None:
+            warnings.append(
+                "rl: didactic battery-only tabular Q-learning baseline; no "
+                "order book, DA/ID bidding, or out-of-sample validation"
+            )
+            if (
+                intrinsic is not None
+                and rl.expected_value_eur > intrinsic.expected_value_eur + 1e-2
+            ):
+                warnings.append(
+                    "rl E[V] exceeds intrinsic - this is a training/discretisation "
+                    "artefact or scenario overfit warning, not executable uplift"
+                )
+            num_training = int(rl.diagnostics.get("num_training_scenarios", 0))
+            if num_training < 10:
+                warnings.append(
+                    f"rl: trained on only {num_training} price scenarios; "
+                    "tabular policies can overfit the discretised training set"
                 )
 
         rolling = self.results.get("rolling_intrinsic")

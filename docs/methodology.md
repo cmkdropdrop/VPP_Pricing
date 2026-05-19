@@ -5,8 +5,8 @@ implementierten Methoden gelten. Ziel ist nicht, Marktmodelle als produktionsrei
 zu verkaufen, sondern ihre Annahmen, Schaetzfehler und Interpretationsgrenzen
 offen zu legen.
 
-Der Abgleich mit wissenschaftlichen Arbeiten zu deutschen VPP-, Speicher- und
-Intraday-Fragestellungen steht in `docs/literature_comparison.md`.
+Der Abgleich mit wissenschaftlichen Arbeiten zu VPP-, Flexibilitaets-, Speicher-
+und Intraday-Fragestellungen steht in `docs/literature_comparison.md`.
 
 ## Bewertungsobjekt
 
@@ -29,6 +29,25 @@ Der erwartete Wert ist:
 ```text
 E[V] = sum_s p_s V_s
 ```
+
+## Portfolio-Aggregation
+
+Das Bewertungsobjekt ist immer ein VPP-Portfolio, nicht ein einzelnes Asset.
+Ein Szenario-Dispatch aggregiert die Asset-Zeitreihen zu einer Portfolio-
+Zeitreihe, berichtet aber zusaetzlich die Beitraege je Asset-Typ:
+
+- erwarteter Cashflow je Asset-Typ,
+- Export- und Import-MWh je Asset-Typ,
+- erneuerbare verfuegbare, dispatchte und curtailed MWh,
+- flexible-Last-Verbrauch und Optimierungswert,
+- dispatchable generation MWh,
+- Batteriezyklen je Batterie als Asset-spezifische Nebenkennzahl.
+
+Diese Trennung ist wichtig: Eine hohe Portfolio-Capture-Ratio kann aus
+erneuerbarer Erzeugung, Lastverschiebung, Generatoren, Speicherarbitrage oder
+deren Kombination kommen. Die Methode bewertet den aggregierten Cashflow, aber
+die Diagnostics sollen zeigen, welche VPP-Komponente den Wert tatsaechlich
+traegt.
 
 ## Risikomasse
 
@@ -137,6 +156,63 @@ Kalibrierungsdiagnostiken berichtet:
 
 Vergleichsberichte warnen bei kleiner Trainingsmenge, low diversity, starkem
 Volatilitaets-Mismatch oder perfect-foresight Dispatch auf generierten Pfaden.
+
+## Reinforcement Learning
+
+Die RL-Methode ist eine bewusst leichte tabellarische Q-Learning-Baseline fuer
+Batterie-Dispatch. Sie ist ein technischer Vergleichspunkt fuer eine einzelne
+Flex-Komponente im Portfolio, nicht die zentrale VPP-Methode und nicht als
+produktionsreifes Tradingmodell gedacht.
+
+Der State wird diskretisiert als:
+
+- verbleibender Horizont,
+- State-of-Charge-Bin,
+- aktueller Preis-Bin aus Quantilen der Trainingsszenarien,
+- grober Momentum-Bin aus der vorherigen Preisbewegung.
+
+Der Action Space ist klein:
+
+```text
+charge, idle, discharge
+```
+
+Aktionen werden vor Ausfuehrung gegen Batteriegrenzen, Leistungslimit,
+Wirkungsgrad, Cycle Costs und erreichbaren Terminal-SOC geprueft. Der Reward je
+Schritt ist nur der unmittelbare Energie-Cashflow dieses Schritts:
+
+```text
+reward_t = price_t * export_mwh_t - price_t * import_mwh_t - cycle_costs_t
+```
+
+Future-Preise stehen nicht im Entscheidungs-State und werden nicht direkt in den
+Reward geschrieben. Das Q-Learning-Update nutzt den naechsten beobachteten State
+aus der Episode, wie bei tabellarischem episodischem RL ueblich.
+
+Training:
+
+- Episoden sampeln vorhandene Marktszenarien nach deren normalisierten
+  Wahrscheinlichkeiten.
+- Bei mehreren Batterien wird pro Batterie eine eigene Q-Tabelle trainiert.
+- Nicht-Batterie-Assets werden nicht von RL optimiert, sondern deterministisch
+  mit ihrer bestehenden Asset-Dispatch-Logik bewertet.
+- Der Report enthaelt `rl_training_episodes`, `rl_state_count`,
+  `rl_action_count`, `rl_epsilon_final`,
+  `rl_training_reward_mean_last_10pct` und
+  `rl_policy_scope = "battery_only_tabular_q_learning"`.
+
+Wissenschaftliche Grenzen:
+
+- kein validiertes Deep-RL-Tradingmodell,
+- kein VPP-weites Steuerungs- oder Aggregationsmodell,
+- kein Orderbuchmodell und keine Marktliquiditaet,
+- kein Day-Ahead-/Intraday-Bidding und keine Gebotskurven,
+- keine Out-of-sample Garantie,
+- stark abhaengig von State-Diskretisierung, Trainingsszenarien, Seed und
+  Exploration.
+
+Wenn RL oberhalb von Intrinsic liegt, ist das als Trainings-, Diskretisierungs-
+oder In-sample-Artefakt zu lesen, nicht als realisierbarer Uplift.
 
 ## Batterie-Dispatch
 

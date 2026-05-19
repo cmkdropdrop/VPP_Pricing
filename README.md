@@ -7,29 +7,32 @@ Warnungen vor methodischen Fehlinterpretationen.
 
 ## Was dieses Repo leisten soll
 
-- **Belastbare Vergleichbarkeit:** Intrinsic, Rolling Intrinsic, Monte Carlo und
-  GAN-Szenario-Baseline laufen ueber dieselbe Risk- und Diagnostics-Pipeline.
+- **Belastbare Vergleichbarkeit:** Intrinsic, Rolling Intrinsic, Monte Carlo,
+  GAN-Szenario-Baseline und eine leichte tabellarische RL-Baseline laufen ueber
+  dieselbe Risk- und Diagnostics-Pipeline.
 - **Pruefbare Eingaben:** Portfolio-JSON und Market-CSV koennen mit
   `vpp-price validate` vor dem Pricing geprueft werden.
-- **Klare Grenzen:** Intrinsic ist ein Benchmark, MC/GAN-Uplift ist kein
+- **Klare Grenzen:** Intrinsic ist ein Benchmark, MC/GAN/RL-Uplift ist kein
   automatisch ausfuehrbarer Trading-Mehrwert, und kurze Trainingssets werden
   explizit als Risiko markiert.
-- **Praxisnaehe statt Demo-Output:** Ergebnisreports enthalten Capture Ratio,
-  Import/Export-MWh, Capture Price, Negativpreis-Exposure und Batteriezyklen.
+- **VPP statt Einzelasset:** Ergebnisreports enthalten Asset-Mix, Cashflow-,
+  Export- und Import-Beitraege je Asset-Typ, erneuerbare Curtailment-MWh,
+  flexible-Last-Wert, Capture Price, Negativpreis-Exposure und Batteriezyklen.
 
 Siehe auch: `docs/input_contract.md` fuer den Eingabevertrag,
 `docs/methodology.md` fuer Methodik, Risikodefinitionen und Modellgrenzen sowie
 `docs/literature_comparison.md` fuer den Vergleich mit wissenschaftlichen
-Veroeffentlichungen zum deutschen VPP- und Speichermarkt.
+Veroeffentlichungen zu VPPs, Flexibilitaet, Speicher und Intraday-Maerkten.
 
 ## Motivation
 
-Die Bewertung eines VPP-Portfolios haengt stark davon ab, welcher reale
-Erlosstrom gepreist wird: Spot-/Intraday-Arbitrage, Bilanzkreisoptimierung,
-Regelenergie, Demand Response, Retail-Tarife, PPA/Route-to-Market oder lokale
-Netzflexibilitaet. Dieses Toolkit stellt deshalb erst die praxisnahen
-Pricing-Archetypen in den Mittelpunkt und ordnet die implementierten Methoden
-diesen Archetypen zu.
+Die Bewertung eines VPP-Portfolios haengt stark davon ab, welche Rolle der
+Aggregator spielt: Bilanzkreisoptimierung fuer erneuerbare Portfolios,
+Demand-Response-Abruf, Retail-Flexibilitaet, PPA-/Route-to-Market-Management,
+lokale Netzflexibilitaet oder Merchant-Optionalitaet. Speicher sind dabei eine
+Flexibilitaetskomponente, nicht der Zweck des Repos. Dieses Toolkit stellt
+deshalb erst die VPP-Archetypen in den Mittelpunkt und ordnet die implementierten
+Methoden diesen wirtschaftlichen Fragen zu.
 
 Siehe auch: `docs/practical_vpp_pricing.md`.
 
@@ -38,9 +41,10 @@ Siehe auch: `docs/practical_vpp_pricing.md`.
 | Archetyp | Oekonomische Rolle | Typische Nutzer | Repo-Status |
 |---|---|---|---|
 | Intrinsic Benchmark | Obere Schranke und Opportunitaetskosten | Asset Owner, Analysten, Kreditgeber | `intrinsic` |
-| Rolling Forecast Dispatch | Ausfuehrbare Intraday-/Bilanzkreisoptimierung | Aggregatoren, BRPs, Batteriespeichervermarkter | `rolling_intrinsic` |
-| Stochastic Merchant Bidding | Probabilistische Merchant- und Tail-Bewertung | Storage-Owner, Optimierer, Trading Desks | `monte_carlo` |
-| GAN Scenario Generation | ML-basierte Szenario-Erweiterung und Stress-Tests | Quant Desks, Storage-Optimierer, RTM-Analysten | `gan` |
+| Rolling Forecast Dispatch | Ausfuehrbare Intraday-/Bilanzkreisoptimierung | Aggregatoren, BRPs, Hybrid- und Flex-Portfolios | `rolling_intrinsic` |
+| Stochastic VPP Scenario Pricing | Probabilistische Bewertung von Portfolio-Cashflows und Tail-Risiko | Aggregatoren, Optimierer, Trading-/Risk-Teams | `monte_carlo` |
+| GAN Scenario Generation | ML-basierte Szenario-Erweiterung und Stress-Tests | Quant Desks, RTM-Analysten, VPP-Research | `gan` |
+| Tabular RL Dispatch Baseline | Didaktischer Batterie-Policy-Vergleich als Zusatzbaseline | Research Analysts, Methodik-Reviewer | `rl` |
 | Balancing / Ancillary Services | Praequalifizierte Leistung plus Aktivierung | BSPs, C&I-DR, VPP-Aggregatoren | geplant |
 | Retail Tariff Flex | Kundengeraete fuer Retail- und Netzflexibilitaet | Retailer, Utilities, Residential-VPPs | geplant |
 | Hedged Route-to-Market | PPA-/Direktvermarktung plus Rest-Bilanzrisiko | Erneuerbare, PPAs, Utility Desks | geplant |
@@ -51,9 +55,10 @@ Siehe auch: `docs/practical_vpp_pricing.md`.
 | Methode | Beschreibung | Staerken | Grenzen |
 |---|---|---|---|
 | **Intrinsic Value** | Perfekte Voraussicht ueber den gesamten Lieferzeitraum. Jedes Asset optimiert gegen die vollstaendige Preiskurve. | Obere Schranke, deterministisch, schnell | Keine executable Trading-Strategie |
-| **Rolling Intrinsic** | Rollierende Optimierung mit begrenztem Vorhersagefenster. Batterien und flexible Lasten werden je Fenster optimiert, Commit nur fuer die aktuelle Stunde. | Naeher an operativer Bilanzkreis-/Intraday-Praxis | Innerhalb des Fensters weiterhin perfekte Voraussicht; keine Forecast-Fehler |
-| **Monte-Carlo Extrinsic** | Displaced-lognormale AR(1)-Preispfad-Simulation um Basiskurven mit konfigurierbarer Mean-Reversion, Drift-Korrektur und einheitlicher Behandlung von positiven, nullnahen und negativen Preisen. Optional mit rollierender Dispatch-Policy je Pfad via `--mc-dispatch-window-hours`. | Erfasst Optionswert-Sensitivitaet, Tail-Risiko und Streuung | Default bleibt per-path perfect foresight; noch kein Multi-Market-Bidding |
+| **Rolling Intrinsic** | Rollierende Optimierung mit begrenztem Vorhersagefenster. Batterien und flexible Lasten werden je Fenster optimiert, fixe Lasten, erneuerbare Profile und einfache Generatoren laufen als Portfolio-Komponenten mit. | Naeher an operativer Bilanzkreis-/Intraday-Praxis fuer VPPs | Innerhalb des Fensters weiterhin perfekte Voraussicht; keine Forecast-Fehler |
+| **Monte-Carlo Scenario Pricing** | Displaced-lognormale AR(1)-Preispfad-Simulation um Basiskurven mit konfigurierbarer Mean-Reversion, Drift-Korrektur und einheitlicher Behandlung von positiven, nullnahen und negativen Preisen. Optional mit rollierender Dispatch-Policy je Pfad via `--mc-dispatch-window-hours`. | Erfasst Cashflow-Streuung, Tail-Risiko und Portfolio-Optionalitaet | Default bleibt per-path perfect foresight; noch kein Multi-Market-Bidding |
 | **GAN ML Scenario Pricing** | Dependency-freier Generator-/Diskriminator-Ansatz, der normalisierte Strompreis-Kurven lernt und synthetische Pfade fuer Dispatch und Risikometriken erzeugt. Optional mit rollierender Dispatch-Policy via `--gan-dispatch-window-hours`. | Datengetriebene Szenario-Erweiterung, nichtlineare Preisformen, ML-Vergleich gegen MC | Kleine Szenario-Sets koennen Overfitting oder Mode Collapse erzeugen; kein Ersatz fuer Out-of-sample-Kalibrierung |
+| **Reinforcement Learning** | Tabellarisches episodisches Q-Learning fuer Batterie-Dispatch mit diskretem State aus Resthorizont, SOC-Bin, Preis-Bin und Momentum-Bin. | Didaktische Zusatzbaseline fuer eine Flex-Komponente im Portfolio | Batterie-only, stark diskretisierungs- und szenarioabhaengig; kein VPP-weites Bidding- oder Steuerungsmodell |
 
 ---
 
@@ -93,16 +98,18 @@ Im `heat_wave`-Szenario treiben Kuehllast und wegfallende Solarleistung Abendpre
 
 ### VPP-Portfolios
 
-Sechs Portfolios decken die wichtigsten VPP-Archetypen ab:
+Die Beispiele decken bewusst mehrere VPP-Zuschnitte ab. Gemischte und
+last-/erneuerbarennahe Portfolios sind die Hauptfaelle; reine Speicher dienen
+als Rand- und Stressfaelle fuer Flexibilitaetsmethoden.
 
 | Portfolio | Assets | Beschreibung |
 |---|---|---|
 | `sample_portfolio.json` | Solar, Wind, Batterie, Flex-Last, Fix-Last, Gas-Peaker | Referenz-VPP mit gemischtem Asset-Mix |
-| `merchant_bess.json` | 100 MWh / 50 MW Batterie | Grossspeicher fuer Merchant-Arbitrage |
-| `renewable_hybrid.json` | 15 MW Solar + 8 MW Wind + 30 MWh BESS | Co-located Hybrid-Park |
-| `storage_only.json` | 2 Batterien (20 + 8 MWh) | Reines Speicher-Portfolio |
+| `renewable_hybrid.json` | 15 MW Solar + 8 MW Wind + 30 MWh Speicher | Co-located Hybrid-Park |
 | `industrial_site.json` | PV + Fabrik-Last + BTM-Batterie + Kuehlung + Diesel | Industriestandort hinter dem Zaehler |
 | `demand_response.json` | Waermepumpen + EV + HVAC + Home-Batteries + Grundlast | DR-Aggregation |
+| `merchant_bess.json` | 100 MWh / 50 MW Batterie | Speicher-Stressfall fuer Merchant-Arbitrage |
+| `storage_only.json` | 2 Batterien (20 + 8 MWh) | Reiner Speicher-Randfall |
 
 ### Ergebnisuebersicht: Alle Portfolios
 
@@ -114,7 +121,7 @@ Die folgende Tabelle zeigt die Ergebnisse aller Portfolios gegen das erweiterte 
 | | Rolling (6h) | 2,605 | 2,735 | 1,070 | 1,070 | 83.6% |
 | | Monte Carlo | 3,012 | 2,974 | 1,263 | 1,202 | 96.6% |
 | | GAN ML | 2,679 | 821 | 1,450 | 1,450 | 85.9% |
-| **Merchant BESS** | Intrinsic | 9,213 | 10,671 | 3,813 | 3,813 | 100.0% |
+| **Storage Stress Case** | Intrinsic | 9,213 | 10,671 | 3,813 | 3,813 | 100.0% |
 | | Rolling (8h) | 9,213 | 10,671 | 3,813 | 3,813 | 100.0% |
 | | Monte Carlo | 12,162 | 11,890 | 4,962 | 4,094 | 132.0% |
 | | GAN ML | 12,842 | 5,170 | 4,819 | 4,819 | 139.4% |
@@ -140,57 +147,81 @@ Die folgende Tabelle zeigt die Ergebnisse aller Portfolios gegen das erweiterte 
 ![Cross-Portfolio Capture](docs/img/cross_portfolio_capture.png)
 
 **Interpretation:**
-- **Speicher-dominierte Portfolios** (Merchant BESS, Storage Only) zeigen den hoechsten MC- und GAN-Capture.
-  Das liegt an hoeherer Pfadvolatilitaet, generierten Stressformen und rollierendem Dispatch innerhalb der synthetischen Pfade.
-  Der Wert ist eine Sensitivitaet, kein automatisch realisierbares Extrinsic- oder ML-Premium.
-- **Erneuerbare-dominierte Portfolios** (Renewable Hybrid) zeigen MC nahe 100% -
-  Solaranlagen und Windanlagen koennen Preisvolatilitaet kaum aktiv ausnutzen.
-- **Last-dominierte Portfolios** (Industrial Site, Demand Response) zeigen MC/GAN-Werte nahe oder unter 100%.
-  Rollierende flexible Lasten sehen nur das Forecast-Fenster und koennen guenstige Full-Horizon-Zeitpunkte verpassen.
-- **Rolling Intrinsic** ist fuer reine Speicher mit ausreichendem Fenster fast identisch zum Intrinsic-Benchmark.
-  Bei Portfolios mit viel flexibler Last faellt der Wertverlust auch bei 6h-Fenstern deutlich aus.
+- **Gemischte VPPs** kombinieren Erzeugung, Verbrauch, Flexibilitaet und
+  optional Dispatchable Generation. Deshalb ist nicht nur E[V] relevant,
+  sondern auch, welcher Asset-Typ den Cashflow traegt und ob Import-/Export-
+  Positionen operativ plausibel sind.
+- **Erneuerbare- und Hybrid-Portfolios** zeigen, ob Negativpreise, Curtailment
+  und Capture Price sauber abgebildet werden. Preisvolatilitaet erzeugt dort
+  weniger Optionalitaet als bei speicherlastigen Randfaellen.
+- **Last- und DR-Portfolios** koennen negative Cashflows haben. Die sign-aware
+  Capture Ratio verhindert, dass geringere Kosten faelschlich als schlechtere
+  Performance gelesen werden.
+- **Speicherfaelle** bleiben im Repo, aber als Stress-Test fuer Flexibilitaet:
+  hohe MC/GAN-Capture-Werte sind Sensitivitaeten, kein automatisch
+  realisierbares Trading-Premium.
 
 ![Cross-Portfolio Dispatch Diagnostics](docs/img/cross_portfolio_dispatch_diagnostics.png)
 
-Die Dispatch-Diagnostik ergaenzt die reine Bewertung um Capture Price und erwartete Batteriezyklen.
-Damit werden zwei operative Fragen sichtbar: ob der Wert aus guenstigem Preis-Capture oder aus
-mehr Durchsatz kommt, und ob die Zyklenannahmen mit Degradation und Garantiebedingungen vereinbar sind.
+Die Dispatch-Diagnostik ergaenzt die reine Bewertung um VPP-KPIs: Capture Price,
+erneuerbare Curtailment-MWh und Wert aus flexibler Lastverschiebung. Batteriezyklen
+bleiben in JSON/CLI enthalten, sind aber nur eine Asset-spezifische Nebenkennzahl.
 
-### Merchant BESS - Methodenvergleich
+### VPP-Archetypen im Vergleich
+
+Die Beispielcharts sind nach Portfolio-Archetyp organisiert. Der Referenzfall ist
+das gemischte Demo-VPP; die weiteren Faelle zeigen, wie sich dieselbe Methodik
+bei Hybridparks, Industrie-Standorten, Demand Response und Speicher-Stressfaellen
+verhaelt.
+
+![Demo VPP Comparison](docs/img/comparison_demo_vpp.png)
+
+Im gemischten Demo-VPP entstehen Unterschiede nicht aus einer einzelnen Batterie,
+sondern aus dem Zusammenspiel von erneuerbarem Profil, Last, flexibler Last,
+Generator und Speicher. Genau deshalb enthaelt der Output Asset-Typ-Cashflows,
+Import-/Export-MWh je Asset-Typ und Portfolio-Diagnostik.
+
+### Speicher-Stressfall: Merchant BESS
 
 ![Merchant BESS Comparison](docs/img/comparison_merchant_bess.png)
 
-Der 100 MWh / 50 MW Grossspeicher zeigt die schaerfsten Methoden-Unterschiede:
+Der 100 MWh / 50 MW Grossspeicher bleibt als bewusst enges Extrembeispiel im
+Repo, weil daran methodische Optionalitaet, Tail-Risiko und Perfect-Foresight-
+Bias besonders sichtbar werden:
 - Intrinsic und Rolling (8h) sind identisch - das 8h-Fenster reicht fuer das 24h-Arbitrage-Profil.
 - Monte Carlo liegt +32.0% ueber Intrinsic durch zusaetzliche Pfadvolatilitaet.
 - GAN ML liegt +39.4% ueber Intrinsic; das ist ein starker Hinweis auf ML-generierte Upside-Szenarien und muss gegen Out-of-sample-Preisverteilungen, Liquiditaet und Degradation validiert werden.
 
-### Merchant BESS - Scarcity-Dispatch
+### Portfolio-Dispatch in Scarcity- und Duck-Curve-Szenarien
 
 ![Scarcity Dispatch](docs/img/dispatch_merchant_scarcity.png)
 
-Im Scarcity-Szenario (Preise bis 520 EUR/MWh) laesst sich beobachten:
-- Die Batterie laedt in den guenstigen Nachtstunden und entlaedt praezise in die beiden Preisspitzen (08:00 und 18:00).
-- Intrinsic und Rolling zeigen identisches Verhalten - perfect foresight innerhalb des 8h-Fensters reicht aus.
-
-### Sommer-Analyse: Duck Curve mit Renewable Hybrid
+Im Scarcity-Szenario (Preise bis 520 EUR/MWh) zeigt der Speicher-Stressfall,
+wie eine einzelne starke Flex-Komponente auf extreme Preisspreads reagiert. Das
+ist eine Methodenlupe, nicht die zentrale VPP-Story.
 
 ![Summer Hybrid Comparison](docs/img/comparison_summer_hybrid.png)
 
 ![Summer Dispatch](docs/img/dispatch_summer_hybrid.png)
 
-Im Sommer-Base-Szenario wird der Duck-Curve-Effekt deutlich:
-- Mittags importiert das Portfolio (Batterie laedt bei niedrigen/negativen Preisen).
-- Abends exportiert es in den Ramp-Peak (maximaler Preis ~100 EUR/MWh).
-- Rolling Intrinsic (4h-Fenster) erfasst 96.3% - der kuerzere Horizont fuehrt zu leichter Suboptimalitaet bei der Batterie-Positionierung.
+Der Renewable-Hybrid-Fall ist VPP-naher: Solar, Wind und Speicher werden als
+gemeinsames Portfolio bewertet. Im Sommer-Base-Szenario wird der Duck-Curve-
+Effekt deutlich: Mittags entstehen niedrige/negative Preise und abends ein
+Ramp-Peak. Relevant sind hier Capture Price, Curtailment, Importpositionen und
+die Frage, ob der Hybridpark systematisch gegen Negativpreise exponiert ist.
 
 ### Sensitivitaetsanalysen
+
+Die Sensitivitaetsanalysen nutzen den Speicher-Stressfall, weil dort kleine
+Methodenannahmen besonders klar sichtbar werden. Fuer gemischte VPPs sind diese
+Kurven als Methoden-Diagnostik zu lesen, nicht als Aussage, dass VPPs primar
+Speicherprojekte sind.
 
 #### Rolling Intrinsic: Fenstergroesse
 
 ![Window Sensitivity](docs/img/sensitivity_window.png)
 
-Die Fenster-Sensitivitaet des Merchant BESS zeigt:
+Die Fenster-Sensitivitaet im Speicher-Stressfall zeigt:
 
 | Fenster | Capture | Interpretation |
 |---:|---:|---|
@@ -200,8 +231,10 @@ Die Fenster-Sensitivitaet des Merchant BESS zeigt:
 | 6h | 98% | Nahezu vollstaendige Werterfassung |
 | 8h+ | 100% | Identisch mit Intrinsic fuer das 24h-Profil |
 
-**Fazit:** Fuer Day-Ahead-Batterieoptimierung sind 4-6h Vorhersage-Fenster ausreichend.
-Unter 3h geht signifikanter Wert verloren.
+**Fazit:** Fuer kurzzyklische Flexibilitaet sind 4-6h Vorhersage-Fenster in
+diesem Beispiel ausreichend. Bei VPPs mit flexibler Last, Erneuerbaren und
+Hedge-/Bilanzkreislogik muss das Fenster am eigentlichen Use Case validiert
+werden.
 
 #### Monte Carlo: Volatilitaets-Sensitivitaet
 
@@ -220,6 +253,26 @@ sondern muss gegen Forecast-Qualitaet, Ausfuehrbarkeit, Liquiditaet und Degradat
 
 Der Policy-Vergleich trennt den Preisprozess vom Dispatch-Modell: Perfect-Foresight-MC zeigt die obere
 Grenze je Pfad, waehrend ein 4h-rollierender Dispatch die operative Umsetzbarkeit konservativer abbildet.
+
+#### Reinforcement Learning: Zusatzbaseline
+
+`rl` ist bewusst nicht die VPP-Hauptmethode. Es trainiert nur eine tabellarische
+Q-Learning-Policy fuer Batterie-Assets und laesst alle anderen Asset-Typen mit
+ihrer deterministischen Dispatch-Logik laufen. Damit ist RL hier eine technische
+Kontrollbaseline fuer eine Flex-Komponente, kein VPP-weites Steuerungs-,
+Gebots- oder Aggregationsmodell.
+
+Die fokussierte Analyse bleibt reproduzierbar mit:
+
+```bash
+PYTHONPATH=src python examples/run_rl_analysis.py
+```
+
+Die wichtigsten Resultate: Die Policy respektiert Leistungs- und SOC-Grenzen,
+ist aber stark seed- und diskretisierungsabhaengig und bleibt im Speicher-
+Stressfall deutlich unter Rolling Intrinsic. Das ist genau die beabsichtigte
+Einordnung: fuer robuste VPP-Bewertung sind Portfolio-Dispatch, Szenario- und
+Risk-Diagnostik zentraler als eine einzelne Batterie-Q-Tabelle.
 
 ### Quarter-Hourly Analyse (15-min)
 
@@ -250,7 +303,7 @@ src/vpp_pricing/
     risk.py                  # Gewichtete Erwartungs-, CaR-, CVaR- und Streuungsmetriken
     pricing.py               # Legacy-API (delegiert an Intrinsic)
     comparison.py            # Side-by-side Methodenvergleich mit Mispricing-Warnungen
-    diagnostics.py           # Capture Price, Dispatch-, Markt- und Zyklen-Diagnostik
+    diagnostics.py           # VPP-, Asset-Typ-, Dispatch-, Markt- und Zyklen-Diagnostik
     validation.py            # Eingabevalidierung und fachliche Qualitaetschecks
     methods/
         __init__.py          # Registry und get_method()
@@ -258,12 +311,14 @@ src/vpp_pricing/
         intrinsic.py         # Intrinsic Value
         rolling_intrinsic.py # Rolling Intrinsic
         monte_carlo.py       # Monte-Carlo Extrinsic (AR(1) mit Drift-Korrektur)
+        reinforcement_learning.py # Tabular Q-Learning Batterie-Baseline
         gan.py               # GAN ML Scenario Pricing
 tests/
     test_assets.py           # Asset-Dispatch-Tests
     test_pricing.py          # Pricing-Methoden-Tests
     test_practical.py        # Praxis-Archetypen-Tests
     test_monte_carlo.py      # MC Drift-Korrektur und Sensitivitaeten
+    test_reinforcement_learning.py # Tabular-RL-Baseline
     test_gan.py              # GAN-Szenariogenerator und Registry
     test_comparison.py       # Mispricing-Warnungen und Capture Ratio
     test_validation.py       # Input-Validation und CLI-Validate
@@ -274,14 +329,15 @@ docs/
     practical_vpp_pricing.md # Ausfuehrliche Praxis-Dokumentation
     img/                     # Generierte Analyse-Charts
 examples/
-    sample_portfolio.json    # Referenz-VPP
-    merchant_bess.json       # 100 MWh Grossspeicher
-    renewable_hybrid.json    # Solar + Wind + BESS
-    storage_only.json        # 2 Batterien
+    sample_portfolio.json    # Gemischtes Referenz-VPP
+    renewable_hybrid.json    # Solar + Wind + Speicher
     industrial_site.json     # Industriestandort BTM
     demand_response.json     # DR-Aggregation
+    merchant_bess.json       # Speicher-Stressfall
+    storage_only.json        # Reiner Speicher-Randfall
     quarter_hourly_portfolio.json  # 15-min-Flex-Portfolio
     run_analyses.py          # Analyse-Skript (erzeugt alle Charts)
+    run_rl_analysis.py       # Fokussierte RL-Sensitivitaetsanalyse
     data/
         day_ahead_prices.csv
         scenario_prices.csv
@@ -295,10 +351,10 @@ examples/
 
 ```bash
 # Installation
-pip install -e ".[dev]"
+pip install -e ".[dev,analysis]"
 
 # Eingaben vor dem Pricing pruefen
-vpp-price validate examples/merchant_bess.json examples/data/extended_scenarios.csv \
+vpp-price validate examples/sample_portfolio.json examples/data/extended_scenarios.csv \
     --scenario-column scenario \
     --probability-column probability
 
@@ -306,7 +362,7 @@ vpp-price validate examples/merchant_bess.json examples/data/extended_scenarios.
 vpp-price price examples/sample_portfolio.json examples/data/day_ahead_prices.csv
 
 # Methodenvergleich mit erweiterten Szenarien
-vpp-price compare examples/merchant_bess.json examples/data/extended_scenarios.csv \
+vpp-price compare examples/sample_portfolio.json examples/data/extended_scenarios.csv \
     --scenario-column scenario \
     --probability-column probability
 
@@ -325,8 +381,8 @@ vpp-price compare examples/quarter_hourly_portfolio.json \
     --timestep-hours 0.25 \
     --window-hours 1.5
 
-# Wochenanalyse
-vpp-price compare examples/storage_only.json examples/data/week_scenarios.csv \
+# Wochenanalyse eines gemischten VPPs
+vpp-price compare examples/sample_portfolio.json examples/data/week_scenarios.csv \
     --scenario-column scenario \
     --probability-column probability \
     --window-hours 12
@@ -335,7 +391,7 @@ vpp-price compare examples/storage_only.json examples/data/week_scenarios.csv \
 vpp-price compare examples/sample_portfolio.json examples/data/extended_scenarios.csv \
     --scenario-column scenario \
     --probability-column probability \
-    --methods intrinsic rolling_intrinsic monte_carlo gan \
+    --methods intrinsic rolling_intrinsic monte_carlo rl gan \
     --window-hours 4 \
     --mc-paths 200 \
     --mc-volatility 0.20 \
@@ -345,6 +401,10 @@ vpp-price compare examples/sample_portfolio.json examples/data/extended_scenario
     --gan-paths 200 \
     --gan-epochs 250 \
     --gan-dispatch-window-hours 4 \
+    --rl-episodes 500 \
+    --rl-soc-bins 11 \
+    --rl-price-bins 8 \
+    --rl-seed 42 \
     --output runner_outputs/comparison.json
 
 # Praxis-Archetypen und Mispricing-Risiken anzeigen
@@ -364,12 +424,12 @@ gestartet wird. Der Check bricht bei technischen Fehlern mit Exit-Code 1 ab und
 kann im CI-Modus mit `--strict` auch Warnungen als Fehler behandeln.
 
 ```bash
-vpp-price validate examples/merchant_bess.json examples/data/extended_scenarios.csv \
+vpp-price validate examples/sample_portfolio.json examples/data/extended_scenarios.csv \
     --scenario-column scenario \
     --probability-column probability \
     --strict
 
-vpp-price validate examples/merchant_bess.json examples/data/extended_scenarios.csv \
+vpp-price validate examples/sample_portfolio.json examples/data/extended_scenarios.csv \
     --scenario-column scenario \
     --probability-column probability \
     --json \
@@ -384,34 +444,34 @@ Exposure von Erneuerbaren.
 ## CLI-Ausgabeformat
 
 `vpp-price compare` zeigt Approach-Zuordnung, Capture Ratio und Mispricing-Warnungen.
-Konsole und JSON enthalten zusaetzlich Dispatch-Diagnostik wie Export/Import-MWh,
-Capture Price, negative-price exposure und Batteriezyklen:
+Konsole und JSON enthalten zusaetzlich VPP-Diagnostik wie Asset-Mix,
+Export/Import-MWh, Capture Price, erneuerbare Curtailment-MWh, flexible-Last-
+Wert, negative-price exposure und Batteriezyklen:
 
-```
+```text
 ==================================================================================================
-  VPP PRICING METHOD COMPARISON -- Merchant BESS 2h
+  VPP PRICING METHOD COMPARISON -- Demo VPP
 ==================================================================================================
   Base scenarios: 5
+  Asset mix: battery=1, fixed_load=1, flexible_load=1, generator=1, renewable=2
 
   Method                 Approach                           E[V] EUR    Std EUR      CaR EUR     CVaR EUR  Capture%
   ------------------------------------------------------------------------------------------------
-  intrinsic              benchmark_intrinsic                 9213.36   10671.41      3812.60      3812.60    100.0%
-  rolling_intrinsic      rolling_forecast_dispatch           9213.36   10671.41      3812.60      3812.60    100.0%
-  monte_carlo            stochastic_merchant_bidding        12161.78   11889.90      4962.45      4094.08    132.0%
-  gan                    ml_gan_scenario_generation         12841.83    5169.58      4818.87      4818.87    139.4%
+  intrinsic              benchmark_intrinsic                 3117.47    2838.48      1432.86      1432.86    100.0%
+  rolling_intrinsic      rolling_forecast_dispatch           2605.38    2734.81      1070.16      1070.16     83.6%
+  monte_carlo            stochastic_merchant_bidding         3569.60    3141.43      1557.77      1509.55    114.5%
+  gan                    ml_gan_scenario_generation          3232.45     849.71      2071.62      2071.62    103.7%
 
-  Delta vs. intrinsic (perfect-foresight benchmark):
-    rolling_intrinsic             +0.00 EUR  (+0.0%)
-    monte_carlo                +2948.42 EUR  (+32.0%)
-    gan                        +3628.47 EUR  (+39.4%)
+  Portfolio dispatch diagnostics:
+  Method                  Export MWh  Import MWh  Capture EUR/MWh  RES curt.   Flex EUR  Batt cyc.
+  --------------------------------------------------------------------------------------------------------
+  intrinsic                    53.23       36.30           104.66       1.02     618.46       2.44
+  rolling_intrinsic            52.12       35.18           102.25       1.02     106.59       2.44
+  monte_carlo                  55.34       37.34           108.73       1.21     724.11       2.45
+  gan                          56.33       39.54            98.38       0.00     648.97       2.67
 
-  Mispricing warnings:
+  Mispricing warnings (Auszug):
     * intrinsic: perfect-foresight upper bound, not an executable strategy
-    * monte_carlo E[V] exceeds base-scenario intrinsic - simulated path volatility
-      and the selected dispatch policy can create apparent uplift
-    * gan E[V] exceeds base-scenario intrinsic - generated price paths and the selected
-      dispatch policy can create apparent ML uplift
-    * gan: trained on only 5 price scenarios; adversarial models can overfit or collapse
     * rolling_intrinsic: still uses known prices within window (no forecast error modelled)
 ==================================================================================================
 ```
@@ -426,6 +486,9 @@ Capture Price, negative-price exposure und Batteriezyklen:
   und einfache Generatoren bleiben deterministisch gegen die jeweilige Preiskurve.
 - Flexible Lasten behalten ihre Gesamtenergie ein; ausserhalb des Forecast-Fensters wird nur Feasibility,
   aber kein Future-Price-Terminalwert angesetzt. Das macht kurze Fenster bewusst konservativ/myopisch.
+- Portfolio-Diagnostik wird je Asset-Typ ausgewiesen: erwarteter Cashflow,
+  Export-/Import-MWh, Asset-Type-Counts, erneuerbare Curtailment-MWh,
+  flexible-Last-Optimierungswert und dispatchable generation.
 - Monte Carlo verteilt die Pfadanzahl proportional auf die Basisszenarien und erbt deren Wahrscheinlichkeiten.
 - Der MC-Preispfad-Generator nutzt ein displaced-lognormales AR(1)-Schock-Modell mit exakter Varianz-basierter
   Drift-Korrektur, sodass E[sim_price] = base_price (unbiased) fuer jeden Zeitschritt gilt.
@@ -433,6 +496,13 @@ Capture Price, negative-price exposure und Batteriezyklen:
   `--mc-price-floor` setzt den Mindestabstand der verschobenen Preise zu null.
 - Mean-Reversion (0 = unabhaengige Schocks, nahe 1 = persistent) ist konfigurierbar via `--mc-mean-reversion`.
 - MC-Reports enthalten empirische Bias-/RMSE-Diagnostik der simulierten mittleren Preiskurve gegen die Basiskurve.
+- RL trainiert pro Batterie eine tabellarische Q-Learning-Policy auf den vorhandenen Szenarien, gewichtet nach
+  Szenariowahrscheinlichkeit. Nicht-Batterie-Assets bleiben deterministisch ueber ihre bestehende Dispatch-Logik.
+- Der RL-State enthaelt nur Resthorizont, SOC-Bin, aktuellen Preis-Bin und grobes Momentum aus der vorherigen
+  Preisbewegung. Reward ist der unmittelbare Energie-Cashflow abzueglich Cycle Costs; Future-Preise werden nicht
+  in State oder Reward geschrieben.
+- RL-Reports enthalten Trainings-Episoden, besuchte State-Anzahl, Action-Anzahl, finale Epsilon-Rate,
+  Trainingsreward der letzten 10% und Warnungen bei kleinen Szenario-Sets.
 - GAN ML trainiert eine kleine Generator-/Diskriminator-Architektur auf je Zeitschritt normalisierten Preisvektoren.
 - Die GAN-Trainingsdaten werden mit Szenariowahrscheinlichkeiten gesampelt; generierte Pfade werden anschliessend
   gleichgewichtet bewertet und optional mit derselben rollierenden Dispatch-Policy gefahren.
@@ -444,10 +514,9 @@ Capture Price, negative-price exposure und Batteriezyklen:
 - Der Vergleichsoutput enthaelt automatische Mispricing-Warnungen, die Nutzer auf methodenspezifische Verzerrungen hinweisen.
 
 Die wissenschaftliche Einordnung der Beispielergebnisse ist separat dokumentiert:
-`docs/literature_comparison.md` vergleicht Merchant-BESS-, Renewable-Hybrid- und
-Rolling-/MC-Ergebnisse mit deutscher bzw. deutschlandbezogener Literatur zu
-Speicherarbitrage, VPP-Bidding, Intraday-Forecasting, Risiko-Pooling und
-Multi-Use-Batteriebetrieb.
+`docs/literature_comparison.md` vergleicht VPP-Bidding, Intraday-Forecasting,
+Risiko-Pooling, Renewable-Hybrid-Dispatch, Speicherarbitrage als Flex-Baustein
+und Multi-Use-Betrieb mit deutscher bzw. deutschlandbezogener Literatur.
 
 ## Programmatische Nutzung
 
@@ -459,10 +528,11 @@ from vpp_pricing import (
     IntrinsicPricing,
     RollingIntrinsicPricing,
     MonteCarloPricing,
+    ReinforcementLearningPricing,
     GANPricing,
 )
 
-portfolio = VirtualPowerPlant.from_json("examples/merchant_bess.json")
+portfolio = VirtualPowerPlant.from_json("examples/sample_portfolio.json")
 markets = load_market_csv(
     "examples/data/extended_scenarios.csv",
     scenario_column="scenario",
@@ -477,6 +547,8 @@ result = compare_methods(
         RollingIntrinsicPricing(window_hours=6),
         MonteCarloPricing(num_paths=500, volatility=0.20, mean_reversion=0.7, seed=42),
         GANPricing(num_paths=500, epochs=250, seed=42, dispatch_window_hours=6),
+        # Optional battery-only method appendix:
+        ReinforcementLearningPricing(episodes=500, soc_bins=11, price_bins=8, seed=42),
     ],
     risk_aversion=0.5,
     alpha=0.05,

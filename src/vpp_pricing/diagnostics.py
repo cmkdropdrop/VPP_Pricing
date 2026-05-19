@@ -111,9 +111,22 @@ def portfolio_dispatch_diagnostics(
     max_peak_export = 0.0
     max_peak_import = 0.0
     battery_cycles_by_asset: defaultdict[str, float] = defaultdict(float)
+    asset_type_counts: defaultdict[str, int] = defaultdict(int)
+    cashflow_by_asset_type: defaultdict[str, float] = defaultdict(float)
+    export_by_asset_type: defaultdict[str, float] = defaultdict(float)
+    import_by_asset_type: defaultdict[str, float] = defaultdict(float)
+    renewable_available_mwh = 0.0
+    renewable_dispatched_mwh = 0.0
+    renewable_curtailed_mwh = 0.0
+    flexible_load_value_eur = 0.0
+    fixed_load_consumption_mwh = 0.0
+    flexible_load_consumption_mwh = 0.0
+    dispatchable_generation_mwh = 0.0
 
     first = dispatch_list[0]
     horizon_hours = first.intervals * first.timestep_hours
+    for asset in first.asset_dispatches:
+        asset_type_counts[asset.asset_type] += 1
 
     for dispatch, probability in zip(dispatch_list, probs):
         power = dispatch.aggregate_power_mw
@@ -155,6 +168,37 @@ def portfolio_dispatch_diagnostics(
         max_peak_import = max(max_peak_import, scenario_peak_import)
 
         for asset in dispatch.asset_dispatches:
+            asset_cashflow = asset.total_cashflow_eur
+            asset_export = sum(max(mw, 0.0) * dt for mw in asset.power_mw)
+            asset_import = sum(max(-mw, 0.0) * dt for mw in asset.power_mw)
+            cashflow_by_asset_type[asset.asset_type] += probability * asset_cashflow
+            export_by_asset_type[asset.asset_type] += probability * asset_export
+            import_by_asset_type[asset.asset_type] += probability * asset_import
+
+            if asset.asset_type == "renewable":
+                renewable_available_mwh += probability * float(
+                    asset.metadata.get("available_mwh", 0.0) or 0.0
+                )
+                renewable_dispatched_mwh += probability * float(
+                    asset.metadata.get("dispatched_mwh", asset_export) or 0.0
+                )
+                renewable_curtailed_mwh += probability * float(
+                    asset.metadata.get("curtailed_mwh", 0.0) or 0.0
+                )
+            elif asset.asset_type == "flexible_load":
+                flexible_load_value_eur += probability * float(
+                    asset.metadata.get("flex_value_eur", 0.0) or 0.0
+                )
+                flexible_load_consumption_mwh += probability * float(
+                    asset.metadata.get("energy_mwh", asset_import) or 0.0
+                )
+            elif asset.asset_type == "fixed_load":
+                fixed_load_consumption_mwh += probability * float(
+                    asset.metadata.get("energy_mwh", asset_import) or 0.0
+                )
+            elif asset.asset_type == "generator":
+                dispatchable_generation_mwh += probability * asset_export
+
             if asset.asset_type != "battery":
                 continue
             capacity = float(asset.metadata.get("capacity_mwh", 0.0) or 0.0)
@@ -205,4 +249,30 @@ def portfolio_dispatch_diagnostics(
             name: _round(cycles, 6)
             for name, cycles in sorted(battery_cycles_by_asset.items())
         },
+        f"{prefix}_asset_type_counts": dict(sorted(asset_type_counts.items())),
+        f"{prefix}_cashflow_by_asset_type_eur": {
+            asset_type: _round(value, 2)
+            for asset_type, value in sorted(cashflow_by_asset_type.items())
+        },
+        f"{prefix}_export_mwh_by_asset_type": {
+            asset_type: _round(value, 6)
+            for asset_type, value in sorted(export_by_asset_type.items())
+        },
+        f"{prefix}_import_mwh_by_asset_type": {
+            asset_type: _round(value, 6)
+            for asset_type, value in sorted(import_by_asset_type.items())
+        },
+        f"{prefix}_renewable_available_mwh": _round(renewable_available_mwh, 6),
+        f"{prefix}_renewable_dispatched_mwh": _round(renewable_dispatched_mwh, 6),
+        f"{prefix}_renewable_curtailed_mwh": _round(renewable_curtailed_mwh, 6),
+        f"{prefix}_flexible_load_value_eur": _round(flexible_load_value_eur, 2),
+        f"{prefix}_fixed_load_consumption_mwh": _round(fixed_load_consumption_mwh, 6),
+        f"{prefix}_flexible_load_consumption_mwh": _round(
+            flexible_load_consumption_mwh,
+            6,
+        ),
+        f"{prefix}_dispatchable_generation_mwh": _round(
+            dispatchable_generation_mwh,
+            6,
+        ),
     }

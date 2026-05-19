@@ -361,10 +361,10 @@ def _rolling_dispatch_flexible_load(
     )
 
 
-def dispatch_with_rolling_battery_policy(
+def dispatch_with_rolling_vpp_policy(
     portfolio: VirtualPowerPlant, market: MarketData, window_intervals: int
 ) -> PortfolioDispatch:
-    """Dispatch the portfolio with rolling battery and flexible-load decisions."""
+    """Dispatch a VPP with rolling battery and flexible-load decisions."""
     if window_intervals <= 0:
         raise ValueError("window_intervals must be positive")
 
@@ -391,7 +391,8 @@ def dispatch_with_rolling_battery_policy(
     )
 
 
-_rolling_dispatch_portfolio = dispatch_with_rolling_battery_policy
+dispatch_with_rolling_battery_policy = dispatch_with_rolling_vpp_policy
+_rolling_dispatch_portfolio = dispatch_with_rolling_vpp_policy
 
 
 @dataclass
@@ -420,7 +421,7 @@ class RollingIntrinsicPricing:
             max(1, ceil(self.window_hours / m.timestep_hours)) for m in markets
         ]
         results = tuple(
-            dispatch_with_rolling_battery_policy(portfolio, market, window)
+            dispatch_with_rolling_vpp_policy(portfolio, market, window)
             for market, window in zip(markets, window_by_market)
         )
         probs = normalized_probabilities([m.probability for m in markets], len(markets))

@@ -7,9 +7,10 @@ the approach, and which mispricing risk can create real losses.
 
 ## Market Context
 
-VPPs aggregate distributed energy resources such as batteries, EV chargers,
-smart buildings, flexible C&I loads, and renewable assets so they can deliver
-grid services comparable to larger plants.  The economic relevance is material:
+VPPs aggregate distributed energy resources such as renewables, EV chargers,
+smart buildings, flexible C&I loads, behind-the-meter storage, and dispatchable
+backup assets so they can deliver grid services comparable to larger plants.
+The economic relevance is material:
 the US DOE estimates that 80-160 GW of VPPs by 2030 could reduce US grid costs
 by about USD 10 billion per year.  RMI frames VPPs as a reliability,
 affordability, decarbonisation, electrification, and consumer-empowerment
@@ -26,9 +27,10 @@ markets, subject to size, telemetry, metering, and coordination rules.
 | Approach | Economic role | Typical users | Repo status |
 |---|---|---|---|
 | Intrinsic benchmark | Upper bound and opportunity-cost benchmark | asset owners, lenders, analysts | implemented as `intrinsic` |
-| Rolling forecast dispatch | Executable short-term optimisation and balancing-group management | VPP aggregators, BRPs, battery optimisers | implemented as `rolling_intrinsic` |
-| Stochastic merchant bidding | Scenario-based merchant valuation for storage/hybrids | storage owners, optimisation vendors, trading desks | implemented baseline as `monte_carlo` |
-| GAN scenario generation | ML-based scenario expansion and stress testing | quant desks, storage optimisers, route-to-market analysts | implemented research baseline as `gan` |
+| Rolling forecast dispatch | Executable short-term optimisation and balancing-group management | VPP aggregators, BRPs, hybrid/flex portfolio operators | implemented as `rolling_intrinsic` |
+| Stochastic VPP scenario pricing | Scenario-based valuation for portfolio cashflows and tails | aggregators, optimisation vendors, trading/risk teams | implemented baseline as `monte_carlo` |
+| GAN scenario generation | ML-based scenario expansion and stress testing | quant desks, route-to-market analysts, VPP researchers | implemented research baseline as `gan` |
+| Tabular RL dispatch baseline | Technical policy baseline for battery assets inside a VPP | research analysts, methodology reviewers | implemented appendix as `rl` |
 | Balancing / ancillary services | Prequalified capacity and activation revenue | VPP aggregators, BSPs, C&I DR providers | planned |
 | Retail tariff flex | Customer device orchestration for retail and grid value | retailers, utilities, residential VPP platforms | planned |
 | Hedged route-to-market | PPA/direct-marketing value plus residual balancing risk | renewables, PPAs, utility desks | planned |
@@ -42,10 +44,9 @@ markets, subject to size, telemetry, metering, and coordination rules.
 - Statkraft describes a VPP of more than 10 GW and uses it in market access,
   PPAs, and scheduling for renewable generators; this maps to route-to-market,
   rolling dispatch, and cross-market flexibility management.
-- Tesla Autobidder and Fluence Mosaic are examples of automated storage and
-  hybrid-asset bidding systems.  These map to stochastic merchant bidding and
-  multi-market optimisation with asset constraints, degradation, and warranty
-  economics.
+- Tesla Autobidder and Fluence Mosaic are examples of automated optimisation for
+  storage and hybrid assets.  In this repo they map to scenario-based valuation
+  and method stress-testing, not to full VPP market participation.
 - Enel X operates C&I demand-response VPPs that receive availability and
   activation-style revenues; this maps to balancing/ancillary and interruptible
   load pricing.
@@ -78,7 +79,7 @@ The implemented methods are deliberately treated as stages:
    look-ahead window and does not model forecast error or intraday liquidity.
    Flexible loads preserve their required total energy; beyond the window the
    implementation enforces feasibility rather than a calibrated terminal value.
-3. `monte_carlo` is a stochastic baseline for merchant optionality and tails.
+3. `monte_carlo` is a stochastic baseline for VPP cashflow optionality and tails.
    Its default full-path dispatch is an upper-bound sensitivity; setting a
    dispatch window applies the same rolling policy inside each simulated path.
 4. `gan` is an ML scenario-generation research baseline. It learns normalised
@@ -86,7 +87,10 @@ The implemented methods are deliberately treated as stages:
    prices the generated paths through the same dispatch and risk engine. It
    requires out-of-sample validation before any generated uplift is treated as
    executable value.
-5. Planned extensions should add explicit products, not generic algorithms:
+5. `rl` is an implemented appendix for a battery policy only. It is useful for
+   comparing a simple state-based policy with the dispatch benchmarks, but it is
+   not a VPP-wide orchestration or bidding model.
+6. Planned extensions should add explicit products, not generic algorithms:
    balancing availability/activation, customer baseline models, hedge/PPA
    shape risk, locational network flexibility, and revenue-stack exclusivity.
 

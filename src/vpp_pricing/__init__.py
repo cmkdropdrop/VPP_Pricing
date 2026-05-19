@@ -2,7 +2,7 @@
 
 A framework for modelling Virtual Power Plants and comparing pricing
 methodologies: intrinsic value, rolling intrinsic, and Monte-Carlo
-extrinsic valuation, plus GAN-based scenario generation.
+extrinsic valuation, plus GAN-based scenario generation and tabular RL.
 """
 
 from vpp_pricing.assets import (
@@ -21,6 +21,7 @@ from vpp_pricing.methods import (
     MonteCarloPricing,
     PricingMethod,
     PricingResult,
+    ReinforcementLearningPricing,
     RollingIntrinsicPricing,
     get_method,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "PracticalPricingApproach",
     "PricingMethod",
     "PricingResult",
+    "ReinforcementLearningPricing",
     "RenewableAsset",
     "RollingIntrinsicPricing",
     "VirtualPowerPlant",
