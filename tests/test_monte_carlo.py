@@ -1,7 +1,6 @@
 """Tests for Monte-Carlo pricing: drift correction, mean-reversion, edge cases."""
 
 import unittest
-from math import exp, sqrt
 
 from vpp_pricing.market import MarketData
 from vpp_pricing.methods.monte_carlo import MonteCarloPricing, _simulate_paths
@@ -12,7 +11,7 @@ import random
 
 
 class MCDriftCorrectionTests(unittest.TestCase):
-    """Verify that simulated paths are unbiased (E[sim_price] ≈ base_price)."""
+    """Verify that simulated paths are unbiased around the base price."""
 
     def test_mean_of_many_paths_is_close_to_base_price(self):
         """With enough paths, the average simulated price at each step
@@ -71,22 +70,19 @@ class MCDriftCorrectionTests(unittest.TestCase):
             )
 
     def test_negative_base_price_handling(self):
-        """Negative base prices should produce finite simulated prices."""
+        """Negative base prices use the same unbiased displaced process."""
         base = MarketData(
-            timestamps=("t0", "t1"),
-            prices_eur_per_mwh=(-10.0, 5.0),
+            timestamps=("t0", "t1", "t2"),
+            prices_eur_per_mwh=(-40.0, 0.0, 60.0),
         )
         rng = random.Random(42)
-        paths = _simulate_paths(base, num_paths=50, volatility=0.15, rng=rng)
+        paths = _simulate_paths(base, num_paths=5000, volatility=0.20, rng=rng)
 
-        for path in paths:
-            for price in path.prices_eur_per_mwh:
-                self.assertTrue(
-                    abs(price) < 1e6,
-                    f"simulated price {price} is not finite/reasonable",
-                )
+        for step, base_price in enumerate(base.prices_eur_per_mwh):
+            mean_sim = sum(path.prices_eur_per_mwh[step] for path in paths) / len(paths)
+            self.assertAlmostEqual(mean_sim, base_price, delta=2.0)
 
-    def test_negative_twenty_base_price_keeps_additive_dispersion(self):
+    def test_negative_twenty_base_price_keeps_dispersion(self):
         base = MarketData(
             timestamps=("t0",),
             prices_eur_per_mwh=(-20.0,),
@@ -122,6 +118,15 @@ class MCPricingIntegrationTests(unittest.TestCase):
         ).price(portfolio, [market])
 
         self.assertEqual(result.parameters["mean_reversion"], 0.5)
+        self.assertEqual(result.parameters["price_floor_eur_per_mwh"], 20.0)
+        self.assertEqual(
+            result.diagnostics["mc_price_process"],
+            "displaced_lognormal_ar1",
+        )
+        self.assertIn(
+            "mc_empirical_mean_abs_price_bias_eur_per_mwh",
+            result.diagnostics,
+        )
 
     def test_invalid_mean_reversion_raises(self):
         portfolio = VirtualPowerPlant.from_dict(
@@ -144,6 +149,9 @@ class MCPricingIntegrationTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             MonteCarloPricing(mean_reversion=-0.1).price(portfolio, [market])
+
+        with self.assertRaises(ValueError):
+            MonteCarloPricing(price_floor_eur_per_mwh=0.0).price(portfolio, [market])
 
     def test_dispatch_window_uses_rolling_policy_on_simulated_paths(self):
         portfolio = VirtualPowerPlant.from_dict(

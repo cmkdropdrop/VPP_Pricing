@@ -61,6 +61,9 @@ class GANPricingTests(unittest.TestCase):
         self.assertEqual(result.diagnostics["num_training_scenarios"], 2)
         self.assertIn("gan_final_generator_loss", result.diagnostics)
         self.assertIn("generated_market_price_mean_eur_per_mwh", result.diagnostics)
+        self.assertIn("gan_generated_std_ratio_to_training", result.diagnostics)
+        self.assertIn("gan_curve_diversity_ratio_to_training", result.diagnostics)
+        self.assertIn("gan_price_range_coverage_ratio", result.diagnostics)
 
     def test_gan_is_reproducible_with_seed(self):
         kwargs = {

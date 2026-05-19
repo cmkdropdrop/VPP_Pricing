@@ -16,14 +16,14 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from math import ceil, exp, isclose, isfinite, log, sqrt
+from math import ceil, exp, isfinite, log, sqrt
 from typing import Iterable
 
 from vpp_pricing.diagnostics import (
     market_price_diagnostics,
     portfolio_dispatch_diagnostics,
 )
-from vpp_pricing.market import MarketData
+from vpp_pricing.market import MarketData, validate_market_scenarios
 from vpp_pricing.methods.base import PricingResult
 from vpp_pricing.methods.rolling_intrinsic import dispatch_with_rolling_battery_policy
 from vpp_pricing.portfolio import VirtualPowerPlant
@@ -273,14 +273,7 @@ def _normalise_markets(
 
 
 def _validate_markets(markets: list[MarketData]) -> None:
-    if not markets:
-        raise ValueError("at least one market scenario is required")
-    first = markets[0]
-    for market in markets[1:]:
-        if market.timestamps != first.timestamps:
-            raise ValueError("all GAN training scenarios must use identical timestamps")
-        if not isclose(market.timestep_hours, first.timestep_hours, rel_tol=0.0):
-            raise ValueError("all GAN training scenarios must use identical timesteps")
+    validate_market_scenarios(markets)
 
 
 def _noisy_vector(
@@ -418,19 +411,165 @@ def _generate_paths(
     return paths
 
 
-def _mean_abs_curve_error(
-    generated_paths: list[MarketData],
-    data: _NormalisedTrainingData,
-) -> float:
-    generated_mean = [
-        sum(path.prices_eur_per_mwh[step] for path in generated_paths)
-        / len(generated_paths)
-        for step in range(len(data.means))
+def _weighted_curve_mean(
+    markets: list[MarketData],
+    probabilities: list[float],
+) -> list[float]:
+    horizon = markets[0].intervals
+    return [
+        weighted_mean(
+            [market.prices_eur_per_mwh[step] for market in markets],
+            probabilities,
+        )
+        for step in range(horizon)
     ]
-    return sum(
-        abs(generated - empirical)
-        for generated, empirical in zip(generated_mean, data.means)
-    ) / len(data.means)
+
+
+def _weighted_curve_std(
+    markets: list[MarketData],
+    probabilities: list[float],
+) -> list[float]:
+    means = _weighted_curve_mean(markets, probabilities)
+    return [
+        sqrt(
+            max(
+                weighted_mean(
+                    [
+                        (market.prices_eur_per_mwh[step] - means[step]) ** 2
+                        for market in markets
+                    ],
+                    probabilities,
+                ),
+                0.0,
+            )
+        )
+        for step in range(markets[0].intervals)
+    ]
+
+
+def _negative_price_frequency_pct(
+    markets: list[MarketData],
+    probabilities: list[float],
+) -> float:
+    weighted_negative = 0.0
+    for market, probability in zip(markets, probabilities):
+        interval_weight = probability / market.intervals
+        weighted_negative += sum(
+            interval_weight
+            for price in market.prices_eur_per_mwh
+            if price < 0.0
+        )
+    return 100.0 * weighted_negative
+
+
+def _mean_pairwise_curve_distance(
+    markets: list[MarketData],
+    probabilities: list[float],
+) -> float:
+    if len(markets) < 2:
+        return 0.0
+    numerator = 0.0
+    denominator = 0.0
+    for left_idx, left in enumerate(markets):
+        for right_idx in range(left_idx + 1, len(markets)):
+            right = markets[right_idx]
+            pair_weight = 2.0 * probabilities[left_idx] * probabilities[right_idx]
+            distance = sum(
+                abs(left_price - right_price)
+                for left_price, right_price in zip(
+                    left.prices_eur_per_mwh,
+                    right.prices_eur_per_mwh,
+                )
+            ) / left.intervals
+            numerator += pair_weight * distance
+            denominator += pair_weight
+    return numerator / denominator if denominator > 0.0 else 0.0
+
+
+def _scenario_calibration_diagnostics(
+    training_markets: list[MarketData],
+    training_probabilities: list[float],
+    generated_paths: list[MarketData],
+    generated_probabilities: list[float],
+) -> dict[str, float]:
+    training_mean = _weighted_curve_mean(training_markets, training_probabilities)
+    generated_mean = _weighted_curve_mean(generated_paths, generated_probabilities)
+    errors = [
+        generated - empirical
+        for generated, empirical in zip(generated_mean, training_mean)
+    ]
+    mean_abs_error = sum(abs(error) for error in errors) / len(errors)
+    rmse = sqrt(sum(error * error for error in errors) / len(errors))
+
+    training_std = _weighted_curve_std(training_markets, training_probabilities)
+    generated_std = _weighted_curve_std(generated_paths, generated_probabilities)
+    mean_training_std = sum(training_std) / len(training_std)
+    mean_generated_std = sum(generated_std) / len(generated_std)
+    std_ratio = (
+        mean_generated_std / mean_training_std
+        if mean_training_std > 1e-12
+        else 0.0
+    )
+
+    training_diversity = _mean_pairwise_curve_distance(
+        training_markets,
+        training_probabilities,
+    )
+    generated_diversity = _mean_pairwise_curve_distance(
+        generated_paths,
+        generated_probabilities,
+    )
+    diversity_ratio = (
+        generated_diversity / training_diversity
+        if training_diversity > 1e-12
+        else 0.0
+    )
+
+    training_prices = [
+        price for market in training_markets for price in market.prices_eur_per_mwh
+    ]
+    generated_prices = [
+        price for path in generated_paths for price in path.prices_eur_per_mwh
+    ]
+    training_range = max(training_prices) - min(training_prices)
+    generated_range = max(generated_prices) - min(generated_prices)
+
+    return {
+        "gan_generated_mean_abs_curve_error_eur_per_mwh": round(
+            mean_abs_error,
+            6,
+        ),
+        "gan_generated_curve_rmse_eur_per_mwh": round(rmse, 6),
+        "gan_generated_mean_step_std_eur_per_mwh": round(mean_generated_std, 6),
+        "gan_training_mean_step_std_eur_per_mwh": round(mean_training_std, 6),
+        "gan_generated_std_ratio_to_training": round(std_ratio, 6),
+        "gan_training_negative_price_frequency_pct": round(
+            _negative_price_frequency_pct(training_markets, training_probabilities),
+            6,
+        ),
+        "gan_generated_negative_price_frequency_pct": round(
+            _negative_price_frequency_pct(generated_paths, generated_probabilities),
+            6,
+        ),
+        "gan_negative_price_frequency_error_pct": round(
+            _negative_price_frequency_pct(generated_paths, generated_probabilities)
+            - _negative_price_frequency_pct(training_markets, training_probabilities),
+            6,
+        ),
+        "gan_training_mean_pairwise_curve_distance_eur_per_mwh": round(
+            training_diversity,
+            6,
+        ),
+        "gan_generated_mean_pairwise_curve_distance_eur_per_mwh": round(
+            generated_diversity,
+            6,
+        ),
+        "gan_curve_diversity_ratio_to_training": round(diversity_ratio, 6),
+        "gan_price_range_coverage_ratio": round(
+            generated_range / training_range if training_range > 1e-12 else 0.0,
+            6,
+        ),
+    }
 
 
 @dataclass
@@ -564,17 +703,19 @@ class GANPricing:
                     market.name: round(probability, 6)
                     for market, probability in zip(markets, base_probs)
                 },
-                "gan_generated_mean_abs_curve_error_eur_per_mwh": round(
-                    _mean_abs_curve_error(synthetic_paths, training_data),
-                    6,
-                ),
                 "gan_training_global_price_std_eur_per_mwh": round(
                     training_data.global_std,
                     6,
                 ),
+                **_scenario_calibration_diagnostics(
+                    markets,
+                    base_probs,
+                    synthetic_paths,
+                    probs,
+                ),
                 **training_diagnostics,
                 **metrics.diagnostics(),
-                **cashflow_distribution_diagnostics(cashflows, probs),
+                **cashflow_distribution_diagnostics(cashflows, probs, alpha=alpha),
                 **market_price_diagnostics(markets, prefix="base_market"),
                 **market_price_diagnostics(synthetic_paths, prefix="generated_market"),
                 **portfolio_dispatch_diagnostics(results, probs),

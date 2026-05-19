@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from math import isfinite
+from math import isclose, isfinite
 from pathlib import Path
 
 
@@ -34,6 +34,33 @@ class MarketData:
     @property
     def intervals(self) -> int:
         return len(self.timestamps)
+
+
+def validate_market_scenarios(
+    markets: list[MarketData],
+    *,
+    require_aligned_time_index: bool = True,
+) -> None:
+    """Validate scenario-level consistency before pricing.
+
+    Pricing outputs compare scenario cashflows as one distribution.  That only
+    has a clean interpretation when scenarios cover the same delivery horizon
+    with the same timestep.
+    """
+    if not markets:
+        raise ValueError("at least one market scenario is required")
+
+    first = markets[0]
+    for market in markets[1:]:
+        if not isclose(
+            market.timestep_hours,
+            first.timestep_hours,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("all market scenarios must use identical timesteps")
+        if require_aligned_time_index and market.timestamps != first.timestamps:
+            raise ValueError("all market scenarios must use identical timestamps")
 
 
 def load_market_csv(
@@ -98,7 +125,7 @@ def load_market_csv(
     total_probability = sum(m.probability for m in markets)
     if total_probability <= 0:
         equal_probability = 1.0 / len(markets)
-        return [
+        normalized_markets = [
             MarketData(
                 timestamps=m.timestamps,
                 prices_eur_per_mwh=m.prices_eur_per_mwh,
@@ -108,8 +135,10 @@ def load_market_csv(
             )
             for m in markets
         ]
+        validate_market_scenarios(normalized_markets)
+        return normalized_markets
 
-    return [
+    normalized_markets = [
         MarketData(
             timestamps=m.timestamps,
             prices_eur_per_mwh=m.prices_eur_per_mwh,
@@ -119,3 +148,5 @@ def load_market_csv(
         )
         for m in markets
     ]
+    validate_market_scenarios(normalized_markets)
+    return normalized_markets

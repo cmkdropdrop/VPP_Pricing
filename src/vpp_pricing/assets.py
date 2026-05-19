@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from math import isclose, sqrt
+from dataclasses import dataclass, fields
+from math import isclose, isfinite, sqrt
 from typing import Any, Protocol
 
 from vpp_pricing.market import MarketData
@@ -17,14 +17,26 @@ class Asset(Protocol):
 
 def _series(value: Any, length: int, field_name: str) -> tuple[float, ...]:
     if isinstance(value, (int, float)):
-        return tuple(float(value) for _ in range(length))
+        coerced = _finite_float(value, field_name)
+        return tuple(coerced for _ in range(length))
     if not isinstance(value, list):
         raise ValueError(f"{field_name} must be a number or list")
     if len(value) == 1:
-        return tuple(float(value[0]) for _ in range(length))
+        coerced = _finite_float(value[0], field_name)
+        return tuple(coerced for _ in range(length))
     if len(value) != length:
         raise ValueError(f"{field_name} has {len(value)} values, expected {length}")
-    return tuple(float(v) for v in value)
+    return tuple(_finite_float(v, field_name) for v in value)
+
+
+def _finite_float(value: Any, field_name: str) -> float:
+    try:
+        coerced = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must contain numeric values") from exc
+    if not isfinite(coerced):
+        raise ValueError(f"{field_name} must contain finite values")
+    return coerced
 
 
 @dataclass(frozen=True)
@@ -350,7 +362,11 @@ class BatteryStorage:
 
 
 def create_asset(config: dict[str, Any]) -> Asset:
+    if not isinstance(config, dict):
+        raise ValueError("asset config must be an object")
     asset_type = str(config.get("type", "")).lower()
+    if not asset_type:
+        raise ValueError("asset config must include a type")
     payload = {key: value for key, value in config.items() if key != "type"}
     aliases = {
         "solar": "renewable",
@@ -371,4 +387,22 @@ def create_asset(config: dict[str, Any]) -> Asset:
     }
     if normalized not in registry:
         raise ValueError(f"unsupported asset type: {asset_type!r}")
-    return registry[normalized](**payload)
+    return _build_asset(registry[normalized], payload, asset_type)
+
+
+def _build_asset(
+    asset_cls: type[Any],
+    payload: dict[str, Any],
+    asset_type: str,
+) -> Asset:
+    valid_fields = {field.name for field in fields(asset_cls)}
+    unknown = sorted(set(payload) - valid_fields)
+    if unknown:
+        raise ValueError(
+            f"{asset_type!r} asset has unsupported fields: {unknown}. "
+            f"Allowed fields: {sorted(valid_fields)}"
+        )
+    try:
+        return asset_cls(**payload)
+    except TypeError as exc:
+        raise ValueError(f"invalid {asset_type!r} asset config: {exc}") from exc

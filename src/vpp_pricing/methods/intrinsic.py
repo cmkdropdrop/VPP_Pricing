@@ -21,7 +21,7 @@ from vpp_pricing.diagnostics import (
     market_price_diagnostics,
     portfolio_dispatch_diagnostics,
 )
-from vpp_pricing.market import MarketData
+from vpp_pricing.market import MarketData, validate_market_scenarios
 from vpp_pricing.methods.base import PricingResult
 from vpp_pricing.portfolio import VirtualPowerPlant
 from vpp_pricing.risk import (
@@ -47,8 +47,7 @@ class IntrinsicPricing:
         risk_aversion: float = 0.0,
         alpha: float = 0.05,
     ) -> PricingResult:
-        if not markets:
-            raise ValueError("at least one market scenario is required")
+        validate_market_scenarios(markets)
 
         scenario_results = tuple(portfolio.dispatch(m) for m in markets)
         probs = normalized_probabilities([m.probability for m in markets], len(markets))
@@ -77,7 +76,7 @@ class IntrinsicPricing:
                 "scenario_cashflows_eur": [round(c, 2) for c in cashflows],
                 "scenario_probabilities": [round(p, 6) for p in probs],
                 **metrics.diagnostics(),
-                **cashflow_distribution_diagnostics(cashflows, probs),
+                **cashflow_distribution_diagnostics(cashflows, probs, alpha=alpha),
                 **market_price_diagnostics(markets),
                 **portfolio_dispatch_diagnostics(scenario_results, probs),
             },

@@ -71,6 +71,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="AR(1) mean-reversion coefficient for MC shock process (0-1)",
     )
     compare_parser.add_argument(
+        "--mc-price-floor",
+        type=float,
+        default=20.0,
+        help=(
+            "minimum shifted price level for the displaced-lognormal MC process "
+            "(EUR/MWh)"
+        ),
+    )
+    compare_parser.add_argument(
         "--mc-dispatch-window-hours",
         type=float,
         default=None,
@@ -119,6 +128,21 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    validate_parser = subparsers.add_parser(
+        "validate", help="validate portfolio JSON and market CSV inputs"
+    )
+    _add_input_args(validate_parser)
+    validate_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="return a non-zero exit code when warnings are present",
+    )
+    validate_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the validation report as JSON",
+    )
+
     approaches_parser = subparsers.add_parser(
         "approaches", help="list practical VPP pricing approaches and risks"
     )
@@ -136,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _add_common_args(parser: argparse.ArgumentParser) -> None:
+def _add_input_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("portfolio_json", help="path to portfolio JSON")
     parser.add_argument("market_csv", help="path to market price CSV")
     parser.add_argument(
@@ -154,6 +178,11 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--timestep-hours", type=float, default=1.0, help="interval length in hours"
     )
+    parser.add_argument("--output", default=None, help="optional path for JSON report")
+
+
+def _add_common_args(parser: argparse.ArgumentParser) -> None:
+    _add_input_args(parser)
     parser.add_argument(
         "--risk-aversion",
         type=float,
@@ -165,9 +194,6 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=0.05,
         help="lower-tail probability for CaR and CVaR",
-    )
-    parser.add_argument(
-        "--output", default=None, help="optional path for JSON report"
     )
 
 
@@ -192,6 +218,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _cmd_price(args, portfolio, markets)
     if args.command == "compare":
         return _cmd_compare(args, portfolio, markets)
+    if args.command == "validate":
+        return _cmd_validate(args, portfolio, markets)
     parser.error(f"unknown command: {args.command}")
     return 2
 
@@ -228,6 +256,7 @@ def _cmd_compare(args, portfolio, markets) -> int:
                     volatility=args.mc_volatility,
                     seed=args.mc_seed,
                     mean_reversion=args.mc_mean_reversion,
+                    price_floor_eur_per_mwh=args.mc_price_floor,
                     dispatch_window_hours=args.mc_dispatch_window_hours,
                 )
             )
@@ -262,6 +291,27 @@ def _cmd_compare(args, portfolio, markets) -> int:
     return 0
 
 
+def _cmd_validate(args, portfolio, markets) -> int:
+    from vpp_pricing.validation import validate_portfolio_and_markets
+
+    report = validate_portfolio_and_markets(portfolio, markets)
+    payload = report.to_dict()
+
+    if args.output:
+        _write_json(payload, args.output, quiet=args.json)
+
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        _print_validation_report(report)
+
+    if report.has_errors:
+        return 1
+    if args.strict and report.warning_count:
+        return 1
+    return 0
+
+
 def _cmd_approaches(args) -> int:
     from vpp_pricing.practical import list_practical_approaches
 
@@ -288,12 +338,13 @@ def _cmd_approaches(args) -> int:
     return 0
 
 
-def _write_json(payload: dict, path: str) -> None:
+def _write_json(payload: dict, path: str, *, quiet: bool = False) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
-    print(f"Report written to {output_path}")
+    if not quiet:
+        print(f"Report written to {output_path}")
 
 
 def _print_summary(payload: dict) -> None:
@@ -375,6 +426,41 @@ def _print_comparison(result) -> None:
             print(f"    * {warning}")
 
     print(f"\n{'=' * 110}\n")
+
+
+def _print_validation_report(report) -> None:
+    status = "FAILED" if report.has_errors else "PASSED"
+    print(f"\n{'=' * 88}")
+    print(f"  VPP INPUT VALIDATION -- {report.portfolio_name} [{status}]")
+    print(f"{'=' * 88}")
+    print(f"  Assets: {report.asset_count}")
+    print(f"  Market scenarios: {report.market_count}")
+
+    diagnostics = report.diagnostics
+    print(
+        "  Horizon: "
+        f"{diagnostics['horizon_intervals']} intervals, "
+        f"{diagnostics['horizon_hours']:.2f} hours, "
+        f"dt={diagnostics['timestep_hours']}"
+    )
+    print(
+        "  Price range: "
+        f"{diagnostics['market_price_min_eur_per_mwh']} to "
+        f"{diagnostics['market_price_max_eur_per_mwh']} EUR/MWh"
+    )
+    print(f"  Asset types: {diagnostics['asset_types']}")
+
+    if report.issues:
+        print("\n  Findings:")
+        for issue in report.issues:
+            print(
+                f"    [{issue.severity.upper():<7}] "
+                f"{issue.code}: {issue.message}"
+            )
+    else:
+        print("\n  No findings.")
+
+    print(f"\n{'=' * 88}\n")
 
 
 if __name__ == "__main__":

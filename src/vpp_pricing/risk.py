@@ -51,6 +51,16 @@ def weighted_mean(values: list[float], probabilities: list[float]) -> float:
     return sum(p * v for p, v in zip(probabilities, values))
 
 
+def effective_sample_size(probabilities: list[float]) -> float:
+    """Return Kish effective sample size for normalized scenario weights."""
+    if not probabilities:
+        raise ValueError("at least one probability is required")
+    weight_square_sum = sum(p * p for p in probabilities)
+    if weight_square_sum <= 0:
+        return 0.0
+    return 1.0 / weight_square_sum
+
+
 def weighted_quantile(
     values: list[float], probabilities: list[float], quantile: float
 ) -> float:
@@ -90,6 +100,37 @@ def weighted_lower_cvar(
     return weighted_sum / used_probability if used_probability > 0 else ordered[0][0]
 
 
+def lower_tail_support(
+    values: list[float], probabilities: list[float], alpha: float
+) -> dict[str, float]:
+    """Describe how many observations support the empirical lower-tail metric."""
+    alpha = validate_alpha(alpha)
+    ordered = sorted(zip(values, probabilities), key=lambda item: item[0])
+    remaining = alpha
+    count = 0
+    probability_mass = 0.0
+    squared_weights = 0.0
+
+    for _, probability in ordered:
+        take = min(probability, remaining)
+        if take <= 0:
+            break
+        count += 1
+        probability_mass += take
+        squared_weights += take * take
+        remaining -= take
+
+    return {
+        "count": float(count),
+        "probability_mass": probability_mass,
+        "effective_sample_size": (
+            probability_mass * probability_mass / squared_weights
+            if squared_weights > 0.0
+            else 0.0
+        ),
+    }
+
+
 def cashflow_risk_metrics(
     cashflows: Iterable[float],
     probabilities: Iterable[float],
@@ -127,12 +168,16 @@ def cashflow_risk_metrics(
 def cashflow_distribution_diagnostics(
     cashflows: Iterable[float],
     probabilities: Iterable[float],
+    *,
+    alpha: float = 0.05,
 ) -> dict[str, float]:
     """Return weighted distribution diagnostics for method result metadata."""
     values = [float(v) for v in cashflows]
     probs = normalized_probabilities(probabilities, len(values))
+    alpha = validate_alpha(alpha)
     expected = weighted_mean(values, probs)
     variance = weighted_mean([(v - expected) ** 2 for v in values], probs)
+    tail = lower_tail_support(values, probs, alpha)
     return {
         "cashflow_min_eur": round(min(values), 2),
         "cashflow_p05_eur": round(weighted_quantile(values, probs, 0.05), 2),
@@ -140,4 +185,10 @@ def cashflow_distribution_diagnostics(
         "cashflow_p95_eur": round(weighted_quantile(values, probs, 0.95), 2),
         "cashflow_max_eur": round(max(values), 2),
         "cashflow_std_eur": round(sqrt(max(0.0, variance)), 2),
+        "cashflow_effective_sample_size": round(effective_sample_size(probs), 3),
+        "cashflow_lower_tail_sample_count": round(tail["count"], 3),
+        "cashflow_lower_tail_effective_sample_size": round(
+            tail["effective_sample_size"], 3
+        ),
+        "cashflow_lower_tail_probability_mass": round(tail["probability_mass"], 6),
     }

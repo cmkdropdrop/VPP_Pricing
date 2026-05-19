@@ -8,10 +8,9 @@ highlights differences in valuation, risk metrics, and dispatch behaviour.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isclose
 from typing import Any
 
-from vpp_pricing.market import MarketData
+from vpp_pricing.market import MarketData, validate_market_scenarios
 from vpp_pricing.methods.base import PricingMethod, PricingResult
 from vpp_pricing.portfolio import VirtualPowerPlant
 from vpp_pricing.practical import approach_for_method
@@ -156,6 +155,18 @@ class ComparisonResult:
                     "monte_carlo: dispatch uses full-path perfect foresight; set "
                     "dispatch_window_hours for a more operational receding-horizon policy"
                 )
+            mc_bias = float(
+                mc.diagnostics.get(
+                    "mc_empirical_mean_abs_price_bias_eur_per_mwh",
+                    0.0,
+                )
+            )
+            if mc_bias > 5.0:
+                warnings.append(
+                    f"monte_carlo: simulated mean price differs from the weighted "
+                    f"base curve by {mc_bias:.2f} EUR/MWh on average; increase "
+                    "paths or recalibrate the stochastic process"
+                )
 
         gan = self.results.get("gan")
         if gan is not None:
@@ -187,6 +198,27 @@ class ComparisonResult:
                     "gan: generated paths use full-path perfect-foresight dispatch; "
                     "set dispatch_window_hours for a more operational receding-horizon policy"
                 )
+            std_ratio = float(
+                gan.diagnostics.get("gan_generated_std_ratio_to_training", 1.0)
+            )
+            if std_ratio < 0.35 or std_ratio > 2.5:
+                warnings.append(
+                    "gan: generated step-wise volatility is poorly matched to "
+                    f"training scenarios (std ratio {std_ratio:.2f})"
+                )
+            diversity_ratio = float(
+                gan.diagnostics.get("gan_curve_diversity_ratio_to_training", 1.0)
+            )
+            if diversity_ratio < 0.35:
+                warnings.append(
+                    "gan: generated curve diversity is low versus training data; "
+                    "possible mode collapse"
+                )
+            elif diversity_ratio > 2.5:
+                warnings.append(
+                    "gan: generated curve diversity materially exceeds training "
+                    "data; synthetic tails may be over-dispersed"
+                )
 
         rolling = self.results.get("rolling_intrinsic")
         if rolling is not None:
@@ -196,6 +228,19 @@ class ComparisonResult:
             )
 
         for name, result in self.results.items():
+            tail_ess = float(
+                result.diagnostics.get(
+                    "cashflow_lower_tail_effective_sample_size",
+                    0.0,
+                )
+            )
+            if tail_ess and tail_ess < 5.0:
+                warnings.append(
+                    f"{name}: lower-tail risk metrics are based on an effective "
+                    f"tail sample size of {tail_ess:.2f}; treat CaR/CVaR as "
+                    "coarse empirical estimates"
+                )
+
             negative_export = float(
                 result.diagnostics.get("dispatch_negative_price_export_mwh", 0.0)
             )
@@ -256,11 +301,4 @@ def compare_methods(
 
 
 def _validate_markets(markets: list[MarketData]) -> None:
-    if not markets:
-        raise ValueError("at least one market scenario is required")
-    first = markets[0]
-    for market in markets[1:]:
-        if market.timestamps != first.timestamps:
-            raise ValueError("all market scenarios must use identical timestamps")
-        if not isclose(market.timestep_hours, first.timestep_hours, rel_tol=0.0):
-            raise ValueError("all market scenarios must use identical timesteps")
+    validate_market_scenarios(markets)
