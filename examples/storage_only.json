@@ -1,0 +1,27 @@
+{
+  "name": "Pure Storage Arbitrage",
+  "assets": [
+    {
+      "type": "battery",
+      "name": "grid_battery_1",
+      "capacity_mwh": 20.0,
+      "power_mw": 10.0,
+      "round_trip_efficiency": 0.88,
+      "initial_soc_mwh": 10.0,
+      "terminal_soc_mwh": 10.0,
+      "cycle_cost_eur_per_mwh": 2.5,
+      "grid_points": 81
+    },
+    {
+      "type": "battery",
+      "name": "grid_battery_2",
+      "capacity_mwh": 8.0,
+      "power_mw": 8.0,
+      "round_trip_efficiency": 0.92,
+      "initial_soc_mwh": 4.0,
+      "terminal_soc_mwh": 4.0,
+      "cycle_cost_eur_per_mwh": 3.0,
+      "grid_points": 41
+    }
+  ]
+}

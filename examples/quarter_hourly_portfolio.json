@@ -1,0 +1,29 @@
+{
+  "name": "Quarter-Hourly Flex Portfolio",
+  "assets": [
+    {
+      "type": "battery",
+      "name": "fast_response_bess",
+      "capacity_mwh": 5.0,
+      "power_mw": 5.0,
+      "round_trip_efficiency": 0.90,
+      "initial_soc_mwh": 2.5,
+      "terminal_soc_mwh": 2.5,
+      "cycle_cost_eur_per_mwh": 2.0,
+      "grid_points": 41
+    },
+    {
+      "type": "renewable",
+      "name": "solar_scalar",
+      "capacity_mw": 3.0,
+      "availability": 0.4,
+      "variable_om_eur_per_mwh": 0.5,
+      "curtail_below_price_eur_per_mwh": -15.0
+    },
+    {
+      "type": "fixed_load",
+      "name": "site_baseload",
+      "profile_mw": 1.2
+    }
+  ]
+}

@@ -4,15 +4,34 @@ Forschungs-Framework zum systematischen Vergleich von Bewertungsmethoden fuer Vi
 
 ## Motivation
 
-Die Bewertung eines VPP-Portfolios haengt stark von der gewaehlten Methodik ab. Dieses Toolkit implementiert drei gaengige Ansaetze als austauschbare Module und stellt ein Vergleichs-Framework bereit, um die Unterschiede quantitativ zu analysieren.
+Die Bewertung eines VPP-Portfolios haengt stark davon ab, welcher reale
+Erlosstrom gepreist wird: Spot-/Intraday-Arbitrage, Bilanzkreisoptimierung,
+Regelenergie, Demand Response, Retail-Tarife, PPA/Route-to-Market oder lokale
+Netzflexibilitaet. Dieses Toolkit stellt deshalb erst die praxisnahen
+Pricing-Archetypen in den Mittelpunkt und ordnet die implementierten Methoden
+diesen Archetypen zu.
+
+Siehe auch: `docs/practical_vpp_pricing.md`.
+
+## Praxis-Archetypen
+
+| Archetyp | Oekonomische Rolle | Typische Nutzer | Repo-Status |
+|---|---|---|---|
+| Intrinsic Benchmark | Obere Schranke und Opportunitaetskosten | Asset Owner, Analysten, Kreditgeber | `intrinsic` |
+| Rolling Forecast Dispatch | Ausfuehrbare Intraday-/Bilanzkreisoptimierung | Aggregatoren, BRPs, Batteriespeichervermarkter | `rolling_intrinsic` |
+| Stochastic Merchant Bidding | Probabilistische Merchant- und Tail-Bewertung | Storage-Owner, Optimierer, Trading Desks | `monte_carlo` |
+| Balancing / Ancillary Services | Praequalifizierte Leistung plus Aktivierung | BSPs, C&I-DR, VPP-Aggregatoren | geplant |
+| Retail Tariff Flex | Kundengeraete fuer Retail- und Netzflexibilitaet | Retailer, Utilities, Residential-VPPs | geplant |
+| Hedged Route-to-Market | PPA-/Direktvermarktung plus Rest-Bilanzrisiko | Erneuerbare, PPAs, Utility Desks | geplant |
+| Network Flex / Non-Wires | Lokale Flexibilitaet gegen Netzengpaesse | DSOs, Utilities, lokale Flex-Plattformen | geplant |
 
 ## Implementierte Pricing-Methoden
 
 | Methode | Beschreibung | Staerken | Grenzen |
 |---|---|---|---|
-| **Intrinsic Value** | Perfekte Voraussicht ueber den gesamten Lieferzeitraum. Jedes Asset optimiert gegen die vollstaendige Preiskurve. | Obere Schranke, deterministisch, schnell | Ueberschaetzt realisierbaren Wert |
-| **Rolling Intrinsic** | Rollierende Optimierung mit begrenztem Vorhersagefenster. Nur die naechsten *n* Stunden sind bekannt, Commit nur fuer die aktuelle Stunde. | Realistischer als Full-Horizon, zeigt Informationsverlust | Innerhalb des Fensters weiterhin perfekte Voraussicht |
-| **Monte-Carlo Extrinsic** | Preispfad-Simulation (log-normal um Basiskurve), Dispatch gegen jeden Pfad, Verteilung der Ergebnisse. | Erfasst Optionswert und Streuung, volle Outcome-Distribution | Vereinfachtes Preismodell, rechenintensiver |
+| **Intrinsic Value** | Perfekte Voraussicht ueber den gesamten Lieferzeitraum. Jedes Asset optimiert gegen die vollstaendige Preiskurve. | Obere Schranke, deterministisch, schnell | Keine executable Trading-Strategie |
+| **Rolling Intrinsic** | Rollierende Optimierung mit begrenztem Vorhersagefenster. Batterien werden je Fenster per dynamischem Programm optimiert, Commit nur fuer die aktuelle Stunde. | Naeher an operativer Bilanzkreis-/Intraday-Praxis | Innerhalb des Fensters weiterhin perfekte Voraussicht |
+| **Monte-Carlo Extrinsic** | Preispfad-Simulation um Basiskurven, Dispatch gegen jeden Pfad, gewichtete Ergebnisverteilung. | Erfasst Optionswert, Tail-Risiko und Streuung | Noch kein vollstaendiges Multi-Market-Bidding |
 
 ## Projektstruktur
 
@@ -22,7 +41,9 @@ src/vpp_pricing/
     assets.py                # Asset-Modelle (Solar, Wind, Batterie, Last, Generator)
     market.py                # Marktdaten und CSV-Import
     portfolio.py             # Portfolio-Aggregation
+    practical.py             # Praxis-Archetypen, Nutzergruppen, Mispricing-Risiken
     results.py               # Dispatch- und Ergebnis-Datenstrukturen
+    risk.py                  # Gewichtete Erwartungs-, CaR-, CVaR- und Streuungsmetriken
     pricing.py               # Legacy-API (delegiert an Intrinsic)
     comparison.py            # Side-by-side Methodenvergleich
     methods/
@@ -34,6 +55,9 @@ src/vpp_pricing/
 tests/
     test_assets.py
     test_pricing.py
+    test_practical.py
+docs/
+    practical_vpp_pricing.md
 examples/
     sample_portfolio.json
     data/
@@ -64,6 +88,9 @@ vpp-price compare examples/sample_portfolio.json examples/data/scenario_prices.c
     --mc-volatility 0.20 \
     --output runner_outputs/comparison.json
 
+# Praxis-Archetypen und Mispricing-Risiken anzeigen
+vpp-price approaches --json
+
 # Tests
 pytest
 ```
@@ -82,17 +109,29 @@ Fuehrt mehrere Pricing-Methoden gegen dasselbe Portfolio aus und gibt eine Vergl
 ========================================================================
   Base scenarios: 3
 
-  Method                   E[V] EUR      CaR EUR     CVaR EUR  RiskAdj EUR
-  ----------------------------------------------------------------------
-  intrinsic                 1234.56       890.12       845.67      1234.56
-  rolling_intrinsic         1180.23       870.45       830.12      1180.23
-  monte_carlo               1210.89       780.34       720.56      1210.89
+  Method                     E[V] EUR    Std EUR      CaR EUR     CVaR EUR  RiskAdj EUR
+  ----------------------------------------------------------------------------------
+  intrinsic                   2916.74    1267.50      1720.79      1720.79      2916.74
+  rolling_intrinsic           2912.07    1270.28      1713.48      1713.48      2912.07
+  monte_carlo                 3061.32    1258.60      1690.05      1416.40      3061.32
 
   Delta vs. intrinsic (perfect foresight):
-    rolling_intrinsic              -54.33 EUR  (-4.4%)
-    monte_carlo                    -23.67 EUR  (-1.9%)
+    rolling_intrinsic             -4.67 EUR  (-0.2%)
+    monte_carlo                 +144.58 EUR  (+5.0%)
 ========================================================================
 ```
+
+### `vpp-price approaches`
+Listet die praxisnahen Pricing-Archetypen mit Status. Mit `--json` werden
+Nutzergruppen, Erlosstroeme, Maerkte, Beispielnutzer und Mispricing-Risiken
+maschinenlesbar ausgegeben.
+
+## Quantitative Methodik
+
+- Alle Methoden nutzen dieselbe gewichtete Risk-Engine fuer Erwartungswert, Standardabweichung, CaR und CVaR.
+- Szenariowahrscheinlichkeiten werden normalisiert; wenn alle Gewichte null sind, wird gleichgewichtet.
+- Monte Carlo verteilt die Pfadanzahl proportional auf die Basisszenarien und erbt deren Wahrscheinlichkeiten.
+- Marktdaten werden auf endliche Preise, konsistente Szenario-Wahrscheinlichkeiten und vergleichbare Zeitachsen geprueft.
 
 ## Programmatische Nutzung
 
@@ -126,7 +165,10 @@ result = compare_methods(
 )
 
 for row in result.summary_table():
-    print(f"{row['method']}: E[V]={row['expected_value_eur']:.2f} EUR")
+    print(
+        f"{row['method']} ({row['practical_approach']}): "
+        f"E[V]={row['expected_value_eur']:.2f} EUR"
+    )
 ```
 
 ## Eigene Pricing-Methode hinzufuegen
@@ -161,9 +203,12 @@ class MyCustomPricing:
 
 Dieses Toolkit modelliert Energie-Cashflows gegen exogene Preise. Bewusst nicht enthalten (aber als Erweiterung moeglich):
 
-- Netzrestriktionen und Engpassmanagement
-- Bilanzkreisabweichungen und Ausgleichsenergie
-- Intraday-Liquiditaet und Bid-Ask-Spreads
+- Explizite Regelenergieprodukte mit Verfuegbarkeits- und Aktivierungserloesen
+- Netzrestriktionen, lokale Flexibilitaet und Engpassmanagement
+- Bilanzkreisabweichungen, Ausgleichsenergie und Penalty-Mechaniken
+- Intraday-Liquiditaet, Bid-Ask-Spreads und Orderbuch-Ausfuehrung
 - Start-/Stoppkosten und Mindeststillstandszeiten
+- PPA-/Hedge-Strukturen, Shape Risk und Collateral
+- Demand-Response-Baselines, Opt-outs, Rebound und Kundennutzen
 - Regulatorische Abgaben (EEG, Netzentgelte)
 - Kalibrierte stochastische Preismodelle (Mean-Reversion, Spruenge)

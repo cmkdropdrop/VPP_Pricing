@@ -1,0 +1,81 @@
+{
+  "name": "Renewable Hybrid Park",
+  "assets": [
+    {
+      "type": "solar",
+      "name": "solar_park",
+      "capacity_mw": 15.0,
+      "availability": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.02,
+        0.12,
+        0.3,
+        0.52,
+        0.72,
+        0.88,
+        0.95,
+        0.96,
+        0.88,
+        0.72,
+        0.5,
+        0.28,
+        0.08,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "variable_om_eur_per_mwh": 0.8,
+      "curtail_below_price_eur_per_mwh": -10.0
+    },
+    {
+      "type": "wind",
+      "name": "onshore_wind",
+      "capacity_mw": 8.0,
+      "availability": [
+        0.45,
+        0.48,
+        0.5,
+        0.52,
+        0.55,
+        0.53,
+        0.48,
+        0.42,
+        0.35,
+        0.3,
+        0.26,
+        0.23,
+        0.22,
+        0.24,
+        0.28,
+        0.34,
+        0.4,
+        0.47,
+        0.52,
+        0.55,
+        0.54,
+        0.52,
+        0.5,
+        0.47
+      ],
+      "variable_om_eur_per_mwh": 1.5
+    },
+    {
+      "type": "battery",
+      "name": "co_located_bess",
+      "capacity_mwh": 30.0,
+      "power_mw": 10.0,
+      "round_trip_efficiency": 0.89,
+      "initial_soc_mwh": 15.0,
+      "terminal_soc_mwh": 15.0,
+      "cycle_cost_eur_per_mwh": 2.0,
+      "grid_points": 61
+    }
+  ]
+}

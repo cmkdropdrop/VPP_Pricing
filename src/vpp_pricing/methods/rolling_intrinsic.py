@@ -16,90 +16,191 @@ Strengths:
 
 Limitations:
     * Still uses known prices within the window (no forecast error).
-    * Battery dispatch is myopic beyond the window edge.
+    * Battery dispatch is still myopic beyond the window edge.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isclose, sqrt
+from math import ceil, sqrt
 
-from vpp_pricing.assets import Asset, BatteryStorage
+from vpp_pricing.assets import BatteryStorage
 from vpp_pricing.market import MarketData
 from vpp_pricing.methods.base import PricingResult
 from vpp_pricing.portfolio import VirtualPowerPlant
+from vpp_pricing.risk import (
+    cashflow_distribution_diagnostics,
+    cashflow_risk_metrics,
+    normalized_probabilities,
+)
 from vpp_pricing.results import AssetDispatch, PortfolioDispatch
 
 
-def _rolling_dispatch_battery(
-    battery: BatteryStorage, market: MarketData, window: int
-) -> AssetDispatch:
-    """Dispatch a battery with rolling look-ahead of *window* intervals."""
-    dt = market.timestep_hours
+def _terminal_soc(battery: BatteryStorage) -> float:
+    return (
+        battery.initial_soc_mwh
+        if battery.terminal_soc_mwh is None
+        else battery.terminal_soc_mwh
+    )
+
+
+def _state_grid(
+    battery: BatteryStorage,
+    *,
+    current_soc: float,
+    terminal_soc: float,
+) -> tuple[float, ...]:
+    base = [
+        battery.capacity_mwh * i / (battery.grid_points - 1)
+        for i in range(battery.grid_points)
+    ]
+    base.extend([0.0, battery.capacity_mwh, current_soc, terminal_soc])
+    unique = sorted({round(min(max(v, 0.0), battery.capacity_mwh), 10) for v in base})
+    return tuple(unique)
+
+
+def _can_reach_soc(
+    battery: BatteryStorage,
+    *,
+    current_soc: float,
+    target_soc: float,
+    intervals_remaining: int,
+    timestep_hours: float,
+) -> bool:
+    if intervals_remaining < 0:
+        return False
     charge_eff = sqrt(battery.round_trip_efficiency)
     discharge_eff = sqrt(battery.round_trip_efficiency)
+    max_charge_delta = (
+        intervals_remaining * battery.power_mw * timestep_hours * charge_eff
+    )
+    max_discharge_delta = (
+        intervals_remaining * battery.power_mw * timestep_hours / discharge_eff
+    )
+    return (
+        target_soc <= current_soc + max_charge_delta + 1e-9
+        and target_soc >= current_soc - max_discharge_delta - 1e-9
+    )
+
+
+def _optimise_battery_window(
+    battery: BatteryStorage,
+    market: MarketData,
+    *,
+    start: int,
+    window_intervals: int,
+    current_soc: float,
+) -> tuple[float, float, float]:
+    """Return first-step power, cashflow, and next SOC from a rolling DP."""
+    if battery.capacity_mwh <= 0:
+        raise ValueError("capacity_mwh must be positive")
+    if battery.power_mw < 0:
+        raise ValueError("power_mw must not be negative")
+    if not 0 < battery.round_trip_efficiency <= 1:
+        raise ValueError("round_trip_efficiency must be in (0, 1]")
+    if battery.grid_points < 2:
+        raise ValueError("grid_points must be at least 2")
+
+    terminal_soc = _terminal_soc(battery)
+    if current_soc < -1e-9 or current_soc > battery.capacity_mwh + 1e-9:
+        raise ValueError("current battery SOC must be within [0, capacity_mwh]")
+    if terminal_soc < -1e-9 or terminal_soc > battery.capacity_mwh + 1e-9:
+        raise ValueError("terminal battery SOC must be within [0, capacity_mwh]")
+
+    end = min(start + window_intervals, market.intervals)
+    states = _state_grid(
+        battery,
+        current_soc=current_soc,
+        terminal_soc=terminal_soc,
+    )
+    initial_idx = min(range(len(states)), key=lambda i: abs(states[i] - current_soc))
+    terminal_idx = min(range(len(states)), key=lambda i: abs(states[i] - terminal_soc))
+    charge_efficiency = sqrt(battery.round_trip_efficiency)
+    discharge_efficiency = sqrt(battery.round_trip_efficiency)
+
+    neg_inf = float("-inf")
+    dp = [neg_inf for _ in states]
+    dp[initial_idx] = 0.0
+    parents: list[list[tuple[int, float, float] | None]] = []
+
+    for local_step, price in enumerate(market.prices_eur_per_mwh[start:end]):
+        absolute_step = start + local_step
+        next_dp = [neg_inf for _ in states]
+        step_parent: list[tuple[int, float, float] | None] = [None for _ in states]
+        for current_idx, value in enumerate(dp):
+            if value == neg_inf:
+                continue
+            for next_idx, next_soc in enumerate(states):
+                if not _can_reach_soc(
+                    battery,
+                    current_soc=next_soc,
+                    target_soc=terminal_soc,
+                    intervals_remaining=market.intervals - absolute_step - 1,
+                    timestep_hours=market.timestep_hours,
+                ):
+                    continue
+                transition = battery._transition(
+                    current_soc=states[current_idx],
+                    next_soc=next_soc,
+                    price=price,
+                    timestep_hours=market.timestep_hours,
+                    charge_efficiency=charge_efficiency,
+                    discharge_efficiency=discharge_efficiency,
+                )
+                if transition is None:
+                    continue
+                power_mw, cashflow_eur = transition
+                candidate = value + cashflow_eur
+                if candidate > next_dp[next_idx] + 1e-12:
+                    next_dp[next_idx] = candidate
+                    step_parent[next_idx] = (current_idx, power_mw, cashflow_eur)
+        dp = next_dp
+        parents.append(step_parent)
+
+    candidate_indices: range | tuple[int, ...]
+    if end == market.intervals:
+        candidate_indices = (terminal_idx,)
+    else:
+        candidate_indices = range(len(states))
+
+    best_idx = max(candidate_indices, key=lambda idx: dp[idx])
+    if dp[best_idx] == neg_inf:
+        raise ValueError("rolling battery dispatch has no feasible path")
+
+    idx = best_idx
+    reversed_path: list[tuple[float, float, float]] = []
+    for local_step in range(len(parents) - 1, -1, -1):
+        parent = parents[local_step][idx]
+        if parent is None:
+            raise RuntimeError("rolling battery path reconstruction failed")
+        previous_idx, power_mw, cashflow_eur = parent
+        reversed_path.append((power_mw, cashflow_eur, states[idx]))
+        idx = previous_idx
+
+    power_mw, cashflow_eur, next_soc = reversed_path[-1]
+    return power_mw, cashflow_eur, next_soc
+
+
+def _rolling_dispatch_battery(
+    battery: BatteryStorage, market: MarketData, window_intervals: int
+) -> AssetDispatch:
+    """Dispatch a battery with rolling look-ahead optimisation."""
     soc = battery.initial_soc_mwh
 
     power_out: list[float] = []
     cashflow_out: list[float] = []
 
     for t in range(market.intervals):
-        lookahead_end = min(t + window, market.intervals)
-        window_prices = market.prices_eur_per_mwh[t:lookahead_end]
-
-        best_power = 0.0
-        best_cf = 0.0
-
-        # Evaluate: idle, full charge, full discharge
-        for action_mw in [0.0, -battery.power_mw, battery.power_mw]:
-            if action_mw < 0:  # charging
-                energy_in = abs(action_mw) * dt
-                new_soc = soc + energy_in * charge_eff
-                if new_soc > battery.capacity_mwh + 1e-9:
-                    continue
-                cf = action_mw * dt * window_prices[0]  # cost of charging
-                cf -= battery.cycle_cost_eur_per_mwh * energy_in
-            elif action_mw > 0:  # discharging
-                energy_out = action_mw * dt
-                soc_drain = energy_out / discharge_eff
-                if soc - soc_drain < -1e-9:
-                    continue
-                cf = action_mw * dt * window_prices[0]
-                cf -= battery.cycle_cost_eur_per_mwh * energy_out
-            else:
-                cf = 0.0
-
-            # Simple heuristic: charge when current price is below window
-            # average, discharge when above.
-            avg_future = sum(window_prices) / len(window_prices)
-            if action_mw < 0:
-                # Charging is attractive when price is low relative to future
-                score = cf + (avg_future - window_prices[0]) * abs(action_mw) * dt * 0.5
-            elif action_mw > 0:
-                score = cf + (window_prices[0] - avg_future) * action_mw * dt * 0.3
-            else:
-                score = 0.0
-
-            if score > best_cf + 1e-9:
-                best_cf = cf
-                best_power = action_mw
-
-        # Commit action
-        if best_power < 0:
-            energy_in = abs(best_power) * dt
-            soc += energy_in * charge_eff
-            actual_cf = best_power * dt * window_prices[0]
-            actual_cf -= battery.cycle_cost_eur_per_mwh * energy_in
-        elif best_power > 0:
-            energy_out = best_power * dt
-            soc -= energy_out / discharge_eff
-            actual_cf = best_power * dt * window_prices[0]
-            actual_cf -= battery.cycle_cost_eur_per_mwh * energy_out
-        else:
-            actual_cf = 0.0
-
-        power_out.append(best_power)
-        cashflow_out.append(actual_cf)
+        power_mw, cashflow_eur, next_soc = _optimise_battery_window(
+            battery,
+            market,
+            start=t,
+            window_intervals=window_intervals,
+            current_soc=soc,
+        )
+        power_out.append(power_mw)
+        cashflow_out.append(cashflow_eur)
+        soc = next_soc
 
     return AssetDispatch(
         asset_name=battery.name,
@@ -112,21 +213,22 @@ def _rolling_dispatch_battery(
             "round_trip_efficiency": battery.round_trip_efficiency,
             "initial_soc_mwh": battery.initial_soc_mwh,
             "terminal_soc_mwh": round(soc, 6),
-            "window_hours": window * dt,
+            "window_hours": window_intervals * market.timestep_hours,
+            "window_intervals": window_intervals,
         },
     )
 
 
 def _rolling_dispatch_portfolio(
-    portfolio: VirtualPowerPlant, market: MarketData, window: int
+    portfolio: VirtualPowerPlant, market: MarketData, window_intervals: int
 ) -> PortfolioDispatch:
-    """Dispatch the portfolio: batteries use rolling window, others use
-    their default (full-horizon) dispatch since they don't benefit from
-    look-ahead (renewables/loads are price-takers)."""
+    """Dispatch the portfolio with rolling battery decisions."""
     dispatches: list[AssetDispatch] = []
     for asset in portfolio.assets:
         if isinstance(asset, BatteryStorage):
-            dispatches.append(_rolling_dispatch_battery(asset, market, window))
+            dispatches.append(
+                _rolling_dispatch_battery(asset, market, window_intervals)
+            )
         else:
             dispatches.append(asset.dispatch(market))
 
@@ -140,43 +242,11 @@ def _rolling_dispatch_portfolio(
     )
 
 
-def _normalized_probabilities(probs: list[float]) -> list[float]:
-    total = sum(probs)
-    if total <= 0:
-        return [1.0 / len(probs)] * len(probs)
-    return [p / total for p in probs]
-
-
-def _weighted_quantile(values: list[float], probs: list[float], alpha: float) -> float:
-    ordered = sorted(zip(values, probs), key=lambda x: x[0])
-    cum = 0.0
-    for v, p in ordered:
-        cum += p
-        if cum >= alpha:
-            return v
-    return ordered[-1][0]
-
-
-def _weighted_cvar(values: list[float], probs: list[float], alpha: float) -> float:
-    ordered = sorted(zip(values, probs), key=lambda x: x[0])
-    remaining = alpha
-    ws = 0.0
-    used = 0.0
-    for v, p in ordered:
-        take = min(p, remaining)
-        if take <= 0:
-            break
-        ws += v * take
-        used += take
-        remaining -= take
-    return ws / used if used > 0 else ordered[0][0]
-
-
 @dataclass
 class RollingIntrinsicPricing:
     """Rolling look-ahead intrinsic value with configurable window."""
 
-    window_hours: int = 6
+    window_hours: float = 6.0
 
     @property
     def name(self) -> str:
@@ -192,35 +262,44 @@ class RollingIntrinsicPricing:
     ) -> PricingResult:
         if not markets:
             raise ValueError("at least one market scenario is required")
+        if self.window_hours <= 0:
+            raise ValueError("window_hours must be positive")
 
-        window = max(1, self.window_hours)
+        window_by_market = [
+            max(1, ceil(self.window_hours / m.timestep_hours)) for m in markets
+        ]
         results = tuple(
-            _rolling_dispatch_portfolio(portfolio, m, window) for m in markets
+            _rolling_dispatch_portfolio(portfolio, market, window)
+            for market, window in zip(markets, window_by_market)
         )
-        probs = _normalized_probabilities([m.probability for m in markets])
+        probs = normalized_probabilities([m.probability for m in markets], len(markets))
         cashflows = [r.total_cashflow_eur for r in results]
-
-        expected = sum(p * v for p, v in zip(probs, cashflows))
-        car = _weighted_quantile(cashflows, probs, alpha)
-        cvar = _weighted_cvar(cashflows, probs, alpha)
-        downside = max(0.0, expected - cvar)
-        risk_adj = expected - risk_aversion * downside
+        metrics = cashflow_risk_metrics(
+            cashflows,
+            probs,
+            risk_aversion=risk_aversion,
+            alpha=alpha,
+        )
 
         return PricingResult(
             method_name=self.name,
             portfolio_name=portfolio.name,
-            expected_value_eur=expected,
-            cashflow_at_risk_eur=car,
-            conditional_value_at_risk_eur=cvar,
-            risk_adjusted_value_eur=risk_adj,
+            expected_value_eur=metrics.expected_value_eur,
+            cashflow_at_risk_eur=metrics.cashflow_at_risk_eur,
+            conditional_value_at_risk_eur=metrics.conditional_value_at_risk_eur,
+            risk_adjusted_value_eur=metrics.risk_adjusted_value_eur,
             scenario_results=results,
             parameters={
                 "risk_aversion": risk_aversion,
                 "alpha": alpha,
-                "window_hours": window,
+                "window_hours": self.window_hours,
+                "window_intervals_by_scenario": window_by_market,
             },
             diagnostics={
                 "num_scenarios": len(markets),
                 "scenario_cashflows_eur": [round(c, 2) for c in cashflows],
+                "scenario_probabilities": [round(p, 6) for p in probs],
+                **metrics.diagnostics(),
+                **cashflow_distribution_diagnostics(cashflows, probs),
             },
         )

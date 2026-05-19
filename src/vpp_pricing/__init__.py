@@ -25,9 +25,17 @@ from vpp_pricing.methods import (
 )
 from vpp_pricing.portfolio import VirtualPowerPlant
 from vpp_pricing.pricing import PriceQuote, price_portfolio
+from vpp_pricing.practical import (
+    PracticalPricingApproach,
+    approach_for_method,
+    get_practical_approach,
+    list_practical_approaches,
+)
+from vpp_pricing.risk import CashflowRiskMetrics, cashflow_risk_metrics
 
 __all__ = [
     "BatteryStorage",
+    "CashflowRiskMetrics",
     "ComparisonResult",
     "DispatchableGenerator",
     "FixedLoad",
@@ -36,6 +44,7 @@ __all__ = [
     "MarketData",
     "MonteCarloPricing",
     "PriceQuote",
+    "PracticalPricingApproach",
     "PricingMethod",
     "PricingResult",
     "RenewableAsset",
@@ -43,7 +52,11 @@ __all__ = [
     "VirtualPowerPlant",
     "compare_methods",
     "create_asset",
+    "cashflow_risk_metrics",
+    "approach_for_method",
     "get_method",
+    "get_practical_approach",
+    "list_practical_approaches",
     "load_market_csv",
     "price_portfolio",
 ]

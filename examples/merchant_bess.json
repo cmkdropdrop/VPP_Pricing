@@ -1,0 +1,16 @@
+{
+  "name": "Merchant BESS 2h",
+  "assets": [
+    {
+      "type": "battery",
+      "name": "merchant_2h",
+      "capacity_mwh": 100.0,
+      "power_mw": 50.0,
+      "round_trip_efficiency": 0.86,
+      "initial_soc_mwh": 50.0,
+      "terminal_soc_mwh": 50.0,
+      "cycle_cost_eur_per_mwh": 3.5,
+      "grid_points": 51
+    }
+  ]
+}

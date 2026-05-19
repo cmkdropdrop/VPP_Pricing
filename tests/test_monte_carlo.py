@@ -1,0 +1,137 @@
+"""Tests for Monte-Carlo pricing: drift correction, mean-reversion, edge cases."""
+
+import unittest
+from math import exp, sqrt
+
+from vpp_pricing.market import MarketData
+from vpp_pricing.methods.monte_carlo import MonteCarloPricing, _simulate_paths
+from vpp_pricing.portfolio import VirtualPowerPlant
+
+import random
+
+
+class MCDriftCorrectionTests(unittest.TestCase):
+    """Verify that simulated paths are unbiased (E[sim_price] ≈ base_price)."""
+
+    def test_mean_of_many_paths_is_close_to_base_price(self):
+        """With enough paths, the average simulated price at each step
+        should converge to the base price (unbiased drift correction)."""
+        base = MarketData(
+            timestamps=tuple(f"t{i}" for i in range(24)),
+            prices_eur_per_mwh=tuple(50.0 + i * 2 for i in range(24)),
+            timestep_hours=1.0,
+            name="flat",
+        )
+        rng = random.Random(12345)
+        paths = _simulate_paths(base, num_paths=5000, volatility=0.30, rng=rng)
+
+        for step in range(24):
+            base_price = base.prices_eur_per_mwh[step]
+            mean_sim = sum(p.prices_eur_per_mwh[step] for p in paths) / len(paths)
+            # With 5000 paths the sample mean should be within ~3% of base
+            self.assertAlmostEqual(
+                mean_sim / base_price,
+                1.0,
+                delta=0.05,
+                msg=f"step {step}: E[sim]={mean_sim:.2f} vs base={base_price:.2f}",
+            )
+
+    def test_zero_volatility_paths_equal_base(self):
+        """With zero volatility, simulated paths must exactly equal base."""
+        base = MarketData(
+            timestamps=("t0", "t1", "t2"),
+            prices_eur_per_mwh=(100.0, 50.0, 75.0),
+        )
+        rng = random.Random(42)
+        paths = _simulate_paths(base, num_paths=3, volatility=0.0, rng=rng)
+
+        for path in paths:
+            self.assertEqual(path.prices_eur_per_mwh, base.prices_eur_per_mwh)
+
+    def test_mean_reversion_zero_gives_independent_shocks(self):
+        """With mean_reversion=0, shocks are independent (no autocorrelation)."""
+        base = MarketData(
+            timestamps=tuple(f"t{i}" for i in range(100)),
+            prices_eur_per_mwh=tuple(80.0 for _ in range(100)),
+        )
+        rng = random.Random(999)
+        paths = _simulate_paths(
+            base, num_paths=3000, volatility=0.20, rng=rng, mean_reversion=0.0
+        )
+
+        # With independent shocks, the mean should still be unbiased
+        for step in [0, 50, 99]:
+            mean_sim = sum(p.prices_eur_per_mwh[step] for p in paths) / len(paths)
+            self.assertAlmostEqual(
+                mean_sim / 80.0,
+                1.0,
+                delta=0.05,
+                msg=f"step {step}: E[sim]={mean_sim:.2f} vs base=80.0",
+            )
+
+    def test_negative_base_price_handling(self):
+        """Negative base prices should produce finite simulated prices."""
+        base = MarketData(
+            timestamps=("t0", "t1"),
+            prices_eur_per_mwh=(-10.0, 5.0),
+        )
+        rng = random.Random(42)
+        paths = _simulate_paths(base, num_paths=50, volatility=0.15, rng=rng)
+
+        for path in paths:
+            for price in path.prices_eur_per_mwh:
+                self.assertTrue(
+                    abs(price) < 1e6,
+                    f"simulated price {price} is not finite/reasonable",
+                )
+
+
+class MCPricingIntegrationTests(unittest.TestCase):
+    def test_mean_reversion_parameter_appears_in_result(self):
+        portfolio = VirtualPowerPlant.from_dict(
+            {
+                "name": "test",
+                "assets": [
+                    {
+                        "type": "renewable",
+                        "name": "solar",
+                        "capacity_mw": 1.0,
+                        "availability": 1.0,
+                    }
+                ],
+            }
+        )
+        market = MarketData(
+            timestamps=("t0",), prices_eur_per_mwh=(50.0,), name="base"
+        )
+        result = MonteCarloPricing(
+            num_paths=5, volatility=0.1, seed=1, mean_reversion=0.5
+        ).price(portfolio, [market])
+
+        self.assertEqual(result.parameters["mean_reversion"], 0.5)
+
+    def test_invalid_mean_reversion_raises(self):
+        portfolio = VirtualPowerPlant.from_dict(
+            {
+                "name": "test",
+                "assets": [
+                    {
+                        "type": "renewable",
+                        "name": "r",
+                        "capacity_mw": 1.0,
+                    }
+                ],
+            }
+        )
+        market = MarketData(
+            timestamps=("t0",), prices_eur_per_mwh=(50.0,), name="base"
+        )
+        with self.assertRaises(ValueError, msg="mean_reversion must be in [0, 1)"):
+            MonteCarloPricing(mean_reversion=1.0).price(portfolio, [market])
+
+        with self.assertRaises(ValueError):
+            MonteCarloPricing(mean_reversion=-0.1).price(portfolio, [market])
+
+
+if __name__ == "__main__":
+    unittest.main()

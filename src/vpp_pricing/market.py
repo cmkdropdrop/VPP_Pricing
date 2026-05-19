@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 
 
@@ -18,14 +19,17 @@ class MarketData:
             raise ValueError("timestamps and prices must have identical length")
         if not self.timestamps:
             raise ValueError("market data must contain at least one interval")
-        if self.timestep_hours <= 0:
+        if self.timestep_hours <= 0 or not isfinite(self.timestep_hours):
             raise ValueError("timestep_hours must be positive")
         if self.probability < 0:
             raise ValueError("scenario probability must not be negative")
+        if not isfinite(self.probability):
+            raise ValueError("scenario probability must be finite")
         object.__setattr__(self, "timestamps", tuple(str(v) for v in self.timestamps))
-        object.__setattr__(
-            self, "prices_eur_per_mwh", tuple(float(v) for v in self.prices_eur_per_mwh)
-        )
+        prices = tuple(float(v) for v in self.prices_eur_per_mwh)
+        if any(not isfinite(price) for price in prices):
+            raise ValueError("prices must be finite")
+        object.__setattr__(self, "prices_eur_per_mwh", prices)
 
     @property
     def intervals(self) -> int:
@@ -49,7 +53,12 @@ def load_market_csv(
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:
             raise ValueError(f"{csv_path} has no header row")
-        missing = {price_column, timestamp_column} - set(reader.fieldnames)
+        fieldnames = set(reader.fieldnames)
+        missing = {price_column, timestamp_column} - fieldnames
+        if scenario_column is not None and scenario_column not in fieldnames:
+            missing.add(scenario_column)
+        if probability_column is not None and probability_column not in fieldnames:
+            missing.add(probability_column)
         if missing:
             raise ValueError(f"{csv_path} misses required columns: {sorted(missing)}")
         rows = list(reader)
@@ -57,7 +66,7 @@ def load_market_csv(
     if not rows:
         raise ValueError(f"{csv_path} contains no price rows")
 
-    scenario_key = scenario_column if scenario_column in (reader.fieldnames or []) else None
+    scenario_key = scenario_column if scenario_column in fieldnames else None
     grouped: dict[str, list[dict[str, str]]] = {}
     for row in rows:
         scenario_name = row.get(scenario_key, "base") if scenario_key else "base"
@@ -67,7 +76,13 @@ def load_market_csv(
     for name, scenario_rows in grouped.items():
         probability = 1.0
         if probability_column and probability_column in scenario_rows[0]:
-            probability = float(scenario_rows[0][probability_column])
+            probabilities = [float(row[probability_column]) for row in scenario_rows]
+            if any(
+                abs(probability - probabilities[0]) > 1e-12
+                for probability in probabilities
+            ):
+                raise ValueError(f"scenario {name!r} has inconsistent probabilities")
+            probability = probabilities[0]
         markets.append(
             MarketData(
                 timestamps=tuple(row[timestamp_column] for row in scenario_rows),

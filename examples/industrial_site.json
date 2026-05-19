@@ -1,0 +1,93 @@
+{
+  "name": "Industrial Site VPP",
+  "assets": [
+    {
+      "type": "solar",
+      "name": "rooftop_pv",
+      "capacity_mw": 2.5,
+      "availability": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.02,
+        0.12,
+        0.3,
+        0.52,
+        0.72,
+        0.88,
+        0.95,
+        0.96,
+        0.88,
+        0.72,
+        0.5,
+        0.28,
+        0.08,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "variable_om_eur_per_mwh": 0.5
+    },
+    {
+      "type": "fixed_load",
+      "name": "factory_baseload",
+      "profile_mw": [
+        0.8,
+        0.8,
+        0.8,
+        0.8,
+        0.8,
+        1.0,
+        2.5,
+        3.2,
+        3.5,
+        3.5,
+        3.5,
+        3.2,
+        2.8,
+        3.2,
+        3.5,
+        3.5,
+        3.2,
+        2.5,
+        1.2,
+        1.0,
+        0.8,
+        0.8,
+        0.8,
+        0.8
+      ]
+    },
+    {
+      "type": "battery",
+      "name": "btm_battery",
+      "capacity_mwh": 4.0,
+      "power_mw": 2.0,
+      "round_trip_efficiency": 0.91,
+      "initial_soc_mwh": 2.0,
+      "terminal_soc_mwh": 2.0,
+      "cycle_cost_eur_per_mwh": 1.8,
+      "grid_points": 41
+    },
+    {
+      "type": "flexible_load",
+      "name": "cooling_system",
+      "energy_mwh": 12.0,
+      "min_power_mw": 0.2,
+      "max_power_mw": 1.5,
+      "value_eur_per_mwh": 0.0
+    },
+    {
+      "type": "generator",
+      "name": "backup_diesel",
+      "max_power_mw": 1.5,
+      "marginal_cost_eur_per_mwh": 180.0,
+      "min_margin_eur_per_mwh": 10.0
+    }
+  ]
+}

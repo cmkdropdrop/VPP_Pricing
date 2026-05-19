@@ -42,9 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compare_parser.add_argument(
         "--window-hours",
-        type=int,
-        default=6,
-        help="look-ahead window for rolling intrinsic (hours)",
+        type=float,
+        default=6.0,
+        help="look-ahead window for rolling intrinsic (hours, supports sub-hourly)",
     )
     compare_parser.add_argument(
         "--mc-paths",
@@ -56,13 +56,33 @@ def build_parser() -> argparse.ArgumentParser:
         "--mc-volatility",
         type=float,
         default=0.15,
-        help="annualised volatility for MC price simulation",
+        help="per-sqrt-hour volatility for MC price simulation",
     )
     compare_parser.add_argument(
         "--mc-seed",
         type=int,
         default=42,
         help="random seed for reproducibility",
+    )
+    compare_parser.add_argument(
+        "--mc-mean-reversion",
+        type=float,
+        default=0.7,
+        help="AR(1) mean-reversion coefficient for MC shock process (0-1)",
+    )
+
+    approaches_parser = subparsers.add_parser(
+        "approaches", help="list practical VPP pricing approaches and risks"
+    )
+    approaches_parser.add_argument(
+        "--implemented-only",
+        action="store_true",
+        help="only show approaches with an implemented pricing method",
+    )
+    approaches_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the approach catalogue as JSON",
     )
 
     return parser
@@ -107,6 +127,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "approaches":
+        return _cmd_approaches(args)
+
     portfolio = VirtualPowerPlant.from_json(args.portfolio_json)
     markets = load_market_csv(
         args.market_csv,
@@ -121,7 +144,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _cmd_price(args, portfolio, markets)
     if args.command == "compare":
         return _cmd_compare(args, portfolio, markets)
-
     parser.error(f"unknown command: {args.command}")
     return 2
 
@@ -157,6 +179,7 @@ def _cmd_compare(args, portfolio, markets) -> int:
                     num_paths=args.mc_paths,
                     volatility=args.mc_volatility,
                     seed=args.mc_seed,
+                    mean_reversion=args.mc_mean_reversion,
                 )
             )
         else:
@@ -175,6 +198,32 @@ def _cmd_compare(args, portfolio, markets) -> int:
         _write_json(payload, args.output)
 
     _print_comparison(result)
+    return 0
+
+
+def _cmd_approaches(args) -> int:
+    from vpp_pricing.practical import list_practical_approaches
+
+    approaches = list_practical_approaches(implemented_only=args.implemented_only)
+    if args.json:
+        print(json.dumps([approach.to_dict() for approach in approaches], indent=2))
+        return 0
+
+    print(f"\n{'=' * 98}")
+    print("  PRACTICAL VPP PRICING APPROACHES")
+    print(f"{'=' * 98}")
+    print(
+        f"  {'Approach':<29} {'Status':<22} {'Method':<18} "
+        f"{'Economic relevance':<20}"
+    )
+    print(f"  {'-' * 96}")
+    for approach in approaches:
+        method = approach.implemented_method or "-"
+        print(
+            f"  {approach.id:<29} {approach.implementation_status:<22} "
+            f"{method:<18} {approach.economic_relevance:<20}"
+        )
+    print("\n  Use --json for users, revenue streams, markets, and mispricing risks.\n")
     return 0
 
 
@@ -203,29 +252,37 @@ def _print_summary(payload: dict) -> None:
 def _print_comparison(result) -> None:
     from vpp_pricing.comparison import ComparisonResult
 
-    print(f"\n{'=' * 72}")
+    print(f"\n{'=' * 98}")
     print(f"  VPP PRICING METHOD COMPARISON -- {result.portfolio_name}")
-    print(f"{'=' * 72}")
+    print(f"{'=' * 98}")
     print(f"  Base scenarios: {result.num_scenarios}")
     print()
 
-    header = f"  {'Method':<22} {'E[V] EUR':>12} {'CaR EUR':>12} {'CVaR EUR':>12} {'RiskAdj EUR':>12}"
+    header = (
+        f"  {'Method':<22} {'Approach':<18} {'E[V] EUR':>12} {'Std EUR':>10} "
+        f"{'CaR EUR':>12} {'CVaR EUR':>12} {'Capture%':>9}"
+    )
     print(header)
-    print(f"  {'-' * 70}")
+    print(f"  {'-' * 96}")
 
     for row in result.summary_table():
+        approach = row.get("practical_approach") or "-"
+        capture = row.get("capture_ratio_pct")
+        capture_str = f"{capture:>8.1f}%" if capture is not None else "       -"
         print(
             f"  {row['method']:<22} "
+            f"{approach:<18} "
             f"{row['expected_value_eur']:>12.2f} "
+            f"{row['std_dev_eur']:>10.2f} "
             f"{row['CaR_eur']:>12.2f} "
             f"{row['CVaR_eur']:>12.2f} "
-            f"{row['risk_adj_eur']:>12.2f}"
+            f"{capture_str}"
         )
 
     # Delta analysis vs intrinsic
     if "intrinsic" in result.results:
         intrinsic_ev = result.results["intrinsic"].expected_value_eur
-        print(f"\n  Delta vs. intrinsic (perfect foresight):")
+        print(f"\n  Delta vs. intrinsic (perfect-foresight benchmark):")
         for name, res in result.results.items():
             if name == "intrinsic":
                 continue
@@ -233,7 +290,14 @@ def _print_comparison(result) -> None:
             pct = (delta / abs(intrinsic_ev) * 100) if intrinsic_ev != 0 else 0
             print(f"    {name:<22} {delta:>+12.2f} EUR  ({pct:>+.1f}%)")
 
-    print(f"\n{'=' * 72}\n")
+    # Mispricing warnings
+    warnings = result.mispricing_warnings()
+    if warnings:
+        print(f"\n  Mispricing warnings:")
+        for warning in warnings:
+            print(f"    * {warning}")
+
+    print(f"\n{'=' * 98}\n")
 
 
 if __name__ == "__main__":
