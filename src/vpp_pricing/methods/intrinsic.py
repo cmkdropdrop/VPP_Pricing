@@ -17,6 +17,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from vpp_pricing.diagnostics import (
+    market_price_diagnostics,
+    portfolio_dispatch_diagnostics,
+)
 from vpp_pricing.market import MarketData
 from vpp_pricing.methods.base import PricingResult
 from vpp_pricing.portfolio import VirtualPowerPlant
@@ -74,5 +78,7 @@ class IntrinsicPricing:
                 "scenario_probabilities": [round(p, 6) for p in probs],
                 **metrics.diagnostics(),
                 **cashflow_distribution_diagnostics(cashflows, probs),
+                **market_price_diagnostics(markets),
+                **portfolio_dispatch_diagnostics(scenario_results, probs),
             },
         )

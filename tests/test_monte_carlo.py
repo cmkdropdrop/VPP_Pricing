@@ -5,6 +5,7 @@ from math import exp, sqrt
 
 from vpp_pricing.market import MarketData
 from vpp_pricing.methods.monte_carlo import MonteCarloPricing, _simulate_paths
+from vpp_pricing.methods.rolling_intrinsic import RollingIntrinsicPricing
 from vpp_pricing.portfolio import VirtualPowerPlant
 
 import random
@@ -131,6 +132,43 @@ class MCPricingIntegrationTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             MonteCarloPricing(mean_reversion=-0.1).price(portfolio, [market])
+
+    def test_dispatch_window_uses_rolling_policy_on_simulated_paths(self):
+        portfolio = VirtualPowerPlant.from_dict(
+            {
+                "name": "battery_only",
+                "assets": [
+                    {
+                        "type": "battery",
+                        "name": "battery",
+                        "capacity_mwh": 2.0,
+                        "power_mw": 1.0,
+                        "round_trip_efficiency": 1.0,
+                        "initial_soc_mwh": 1.0,
+                        "terminal_soc_mwh": 1.0,
+                        "grid_points": 3,
+                    }
+                ],
+            }
+        )
+        market = MarketData(
+            timestamps=("t0", "t1", "t2", "t3"),
+            prices_eur_per_mwh=(10.0, 100.0, 20.0, 120.0),
+        )
+
+        rolling = RollingIntrinsicPricing(window_hours=2.0).price(
+            portfolio, [market]
+        )
+        mc = MonteCarloPricing(
+            num_paths=1,
+            volatility=0.0,
+            seed=7,
+            dispatch_window_hours=2.0,
+        ).price(portfolio, [market])
+
+        self.assertEqual(mc.parameters["dispatch_policy"], "rolling_intrinsic_per_path")
+        self.assertEqual(mc.diagnostics["dispatch_window_intervals"], [2])
+        self.assertAlmostEqual(mc.expected_value_eur, rolling.expected_value_eur)
 
 
 if __name__ == "__main__":

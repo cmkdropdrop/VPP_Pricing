@@ -25,6 +25,10 @@ from dataclasses import dataclass
 from math import ceil, sqrt
 
 from vpp_pricing.assets import BatteryStorage
+from vpp_pricing.diagnostics import (
+    market_price_diagnostics,
+    portfolio_dispatch_diagnostics,
+)
 from vpp_pricing.market import MarketData
 from vpp_pricing.methods.base import PricingResult
 from vpp_pricing.portfolio import VirtualPowerPlant
@@ -202,6 +206,7 @@ def _rolling_dispatch_battery(
         cashflow_out.append(cashflow_eur)
         soc = next_soc
 
+    throughput_mwh = sum(abs(power_mw) * market.timestep_hours for power_mw in power_out)
     return AssetDispatch(
         asset_name=battery.name,
         asset_type="battery",
@@ -215,11 +220,15 @@ def _rolling_dispatch_battery(
             "terminal_soc_mwh": round(soc, 6),
             "window_hours": window_intervals * market.timestep_hours,
             "window_intervals": window_intervals,
+            "throughput_mwh": round(throughput_mwh, 6),
+            "equivalent_cycles": round(
+                throughput_mwh / (2.0 * battery.capacity_mwh), 6
+            ),
         },
     )
 
 
-def _rolling_dispatch_portfolio(
+def dispatch_with_rolling_battery_policy(
     portfolio: VirtualPowerPlant, market: MarketData, window_intervals: int
 ) -> PortfolioDispatch:
     """Dispatch the portfolio with rolling battery decisions."""
@@ -240,6 +249,9 @@ def _rolling_dispatch_portfolio(
         timestep_hours=market.timestep_hours,
         asset_dispatches=tuple(dispatches),
     )
+
+
+_rolling_dispatch_portfolio = dispatch_with_rolling_battery_policy
 
 
 @dataclass
@@ -269,7 +281,7 @@ class RollingIntrinsicPricing:
             max(1, ceil(self.window_hours / m.timestep_hours)) for m in markets
         ]
         results = tuple(
-            _rolling_dispatch_portfolio(portfolio, market, window)
+            dispatch_with_rolling_battery_policy(portfolio, market, window)
             for market, window in zip(markets, window_by_market)
         )
         probs = normalized_probabilities([m.probability for m in markets], len(markets))
@@ -301,5 +313,7 @@ class RollingIntrinsicPricing:
                 "scenario_probabilities": [round(p, 6) for p in probs],
                 **metrics.diagnostics(),
                 **cashflow_distribution_diagnostics(cashflows, probs),
+                **market_price_diagnostics(markets),
+                **portfolio_dispatch_diagnostics(results, probs),
             },
         )

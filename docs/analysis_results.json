@@ -1,0 +1,330 @@
+{
+  "Demo VPP": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": 3117.47,
+      "std_dev_eur": 2838.48,
+      "CaR_eur": 1432.86,
+      "CVaR_eur": 1432.86,
+      "risk_adj_eur": 3117.47,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": 3117.25,
+      "std_dev_eur": 2838.44,
+      "CaR_eur": 1432.86,
+      "CVaR_eur": 1432.86,
+      "risk_adj_eur": 3117.25,
+      "delta_vs_intrinsic_eur": -0.22,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": 3367.77,
+      "std_dev_eur": 2819.73,
+      "CaR_eur": 1332.69,
+      "CVaR_eur": 1192.2,
+      "risk_adj_eur": 3367.77,
+      "delta_vs_intrinsic_eur": 250.3,
+      "capture_ratio_pct": 108.0,
+      "num_scenarios": 300
+    }
+  ],
+  "Merchant BESS": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": 9213.36,
+      "std_dev_eur": 10671.41,
+      "CaR_eur": 3812.6,
+      "CVaR_eur": 3812.6,
+      "risk_adj_eur": 9213.36,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": 9213.36,
+      "std_dev_eur": 10671.41,
+      "CaR_eur": 3812.6,
+      "CVaR_eur": 3812.6,
+      "risk_adj_eur": 9213.36,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": 10833.01,
+      "std_dev_eur": 10649.71,
+      "CaR_eur": 3531.47,
+      "CVaR_eur": 3061.24,
+      "risk_adj_eur": 10833.01,
+      "delta_vs_intrinsic_eur": 1619.66,
+      "capture_ratio_pct": 117.6,
+      "num_scenarios": 300
+    }
+  ],
+  "Renewable Hybrid": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": 15891.98,
+      "std_dev_eur": 8329.01,
+      "CaR_eur": 4693.79,
+      "CVaR_eur": 4693.79,
+      "risk_adj_eur": 15891.98,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": 15855.31,
+      "std_dev_eur": 8319.91,
+      "CaR_eur": 4689.96,
+      "CVaR_eur": 4689.96,
+      "risk_adj_eur": 15855.31,
+      "delta_vs_intrinsic_eur": -36.67,
+      "capture_ratio_pct": 99.8,
+      "num_scenarios": 5
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": 16020.78,
+      "std_dev_eur": 8207.28,
+      "CaR_eur": 5693.6,
+      "CVaR_eur": 4944.42,
+      "risk_adj_eur": 16020.78,
+      "delta_vs_intrinsic_eur": 128.8,
+      "capture_ratio_pct": 100.8,
+      "num_scenarios": 300
+    }
+  ],
+  "Storage Only": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": 2992.88,
+      "std_dev_eur": 3339.17,
+      "CaR_eur": 1298.46,
+      "CVaR_eur": 1298.46,
+      "risk_adj_eur": 2992.88,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": 2992.88,
+      "std_dev_eur": 3339.17,
+      "CaR_eur": 1298.46,
+      "CVaR_eur": 1298.46,
+      "risk_adj_eur": 2992.88,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": 3489.12,
+      "std_dev_eur": 3299.95,
+      "CaR_eur": 1223.95,
+      "CVaR_eur": 1093.44,
+      "risk_adj_eur": 3489.12,
+      "delta_vs_intrinsic_eur": 496.24,
+      "capture_ratio_pct": 116.6,
+      "num_scenarios": 300
+    }
+  ],
+  "Industrial Site": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": -2533.67,
+      "std_dev_eur": 911.81,
+      "CaR_eur": -3637.52,
+      "CVaR_eur": -3637.52,
+      "risk_adj_eur": -2533.67,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": -2533.69,
+      "std_dev_eur": 911.82,
+      "CaR_eur": -3637.54,
+      "CVaR_eur": -3637.54,
+      "risk_adj_eur": -2533.69,
+      "delta_vs_intrinsic_eur": -0.02,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": -2431.46,
+      "std_dev_eur": 899.46,
+      "CaR_eur": -3727.68,
+      "CVaR_eur": -3882.66,
+      "risk_adj_eur": -2431.46,
+      "delta_vs_intrinsic_eur": 102.21,
+      "capture_ratio_pct": 96.0,
+      "num_scenarios": 300
+    }
+  ],
+  "Demand Response": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": -8512.09,
+      "std_dev_eur": 3824.15,
+      "CaR_eur": -16345.99,
+      "CVaR_eur": -16345.99,
+      "risk_adj_eur": -8512.09,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": -8536.56,
+      "std_dev_eur": 3825.47,
+      "CaR_eur": -16374.45,
+      "CVaR_eur": -16374.45,
+      "risk_adj_eur": -8536.56,
+      "delta_vs_intrinsic_eur": -24.47,
+      "capture_ratio_pct": 100.3,
+      "num_scenarios": 5
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": -8144.74,
+      "std_dev_eur": 3690.74,
+      "CaR_eur": -15340.5,
+      "CVaR_eur": -16550.22,
+      "risk_adj_eur": -8144.74,
+      "delta_vs_intrinsic_eur": 367.35,
+      "capture_ratio_pct": 95.7,
+      "num_scenarios": 300
+    }
+  ],
+  "Summer: Renewable Hybrid": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": 9033.23,
+      "std_dev_eur": 5528.55,
+      "CaR_eur": 3830.17,
+      "CVaR_eur": 3830.17,
+      "risk_adj_eur": 9033.23,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 5
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": 8698.72,
+      "std_dev_eur": 5060.76,
+      "CaR_eur": 3720.46,
+      "CVaR_eur": 3720.46,
+      "risk_adj_eur": 8698.72,
+      "delta_vs_intrinsic_eur": -334.51,
+      "capture_ratio_pct": 96.3,
+      "num_scenarios": 5
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": 9105.91,
+      "std_dev_eur": 5460.99,
+      "CaR_eur": 3704.42,
+      "CVaR_eur": 3506.88,
+      "risk_adj_eur": 9105.91,
+      "delta_vs_intrinsic_eur": 72.68,
+      "capture_ratio_pct": 100.8,
+      "num_scenarios": 300
+    }
+  ],
+  "Quarter-Hourly Portfolio": [
+    {
+      "method": "intrinsic",
+      "practical_approach": "benchmark_intrinsic",
+      "economic_role": "Upper-bound valuation and opportunity-cost benchmark for flexible assets.",
+      "expected_value_eur": 440.73,
+      "std_dev_eur": 112.17,
+      "CaR_eur": 318.59,
+      "CVaR_eur": 318.59,
+      "risk_adj_eur": 440.73,
+      "delta_vs_intrinsic_eur": 0.0,
+      "capture_ratio_pct": 100.0,
+      "num_scenarios": 3
+    },
+    {
+      "method": "rolling_intrinsic",
+      "practical_approach": "rolling_forecast_dispatch",
+      "economic_role": "Executable short-term dispatch that re-optimises with updated forecasts.",
+      "expected_value_eur": 311.63,
+      "std_dev_eur": 71.46,
+      "CaR_eur": 233.69,
+      "CVaR_eur": 233.69,
+      "risk_adj_eur": 311.63,
+      "delta_vs_intrinsic_eur": -129.11,
+      "capture_ratio_pct": 70.7,
+      "num_scenarios": 3
+    },
+    {
+      "method": "monte_carlo",
+      "practical_approach": "stochastic_merchant_bidding",
+      "economic_role": "Probabilistic bid optimisation for merchant batteries and hybrid assets.",
+      "expected_value_eur": 524.02,
+      "std_dev_eur": 156.0,
+      "CaR_eur": 330.53,
+      "CVaR_eur": 305.25,
+      "risk_adj_eur": 524.02,
+      "delta_vs_intrinsic_eur": 83.29,
+      "capture_ratio_pct": 118.9,
+      "num_scenarios": 200
+    }
+  ]
+}

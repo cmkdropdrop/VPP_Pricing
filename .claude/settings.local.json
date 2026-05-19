@@ -16,7 +16,8 @@
       "Bash(PYTHONPATH=src python -m vpp_pricing.cli compare examples/industrial_site.json examples/data/quarter_hourly_scenarios.csv --scenario-column scenario --probability-column probability --timestep-hours 0.25 --window-hours 2.0 --mc-paths 20)",
       "Bash(PYTHONPATH=src python -m vpp_pricing.cli compare examples/quarter_hourly_portfolio.json examples/data/quarter_hourly_scenarios.csv --scenario-column scenario --probability-column probability --timestep-hours 0.25 --window-hours 1.5 --mc-paths 20)",
       "Bash(PYTHONPATH=src python -m vpp_pricing.cli compare examples/storage_only.json examples/data/week_scenarios.csv --scenario-column scenario --probability-column probability --mc-paths 20 --window-hours 12)",
-      "Bash(python -c \"import matplotlib; print\\(matplotlib.__version__\\)\")"
+      "Bash(python -c \"import matplotlib; print\\(matplotlib.__version__\\)\")",
+      "Bash(PYTHONPATH=src python examples/run_analyses.py)"
     ]
   }
 }

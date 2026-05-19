@@ -54,6 +54,7 @@ class RenewableAsset:
 
         power: list[float] = []
         cashflow: list[float] = []
+        market_revenue = 0.0
         for price, output in zip(market.prices_eur_per_mwh, profile):
             dispatched = output
             if (
@@ -62,18 +63,29 @@ class RenewableAsset:
             ):
                 dispatched = 0.0
             power.append(dispatched)
+            market_revenue += price * dispatched * market.timestep_hours
             cashflow.append(
                 (price - self.variable_om_eur_per_mwh)
                 * dispatched
                 * market.timestep_hours
             )
 
+        available_mwh = sum(profile) * market.timestep_hours
+        dispatched_mwh = sum(power) * market.timestep_hours
+        capture_price = market_revenue / dispatched_mwh if dispatched_mwh else 0.0
         return AssetDispatch(
             asset_name=self.name,
             asset_type="renewable",
             power_mw=tuple(power),
             cashflow_eur=tuple(cashflow),
-            metadata={"capacity_mw": self.capacity_mw},
+            metadata={
+                "capacity_mw": self.capacity_mw,
+                "available_mwh": round(available_mwh, 6),
+                "dispatched_mwh": round(dispatched_mwh, 6),
+                "curtailed_mwh": round(max(0.0, available_mwh - dispatched_mwh), 6),
+                "capture_price_eur_per_mwh": round(capture_price, 6),
+                "variable_om_eur_per_mwh": self.variable_om_eur_per_mwh,
+            },
         )
 
 
@@ -142,7 +154,11 @@ class FlexibleLoad:
         baseline_cost = sum(
             price * baseline_mw * dt for price in market.prices_eur_per_mwh
         )
-        optimized_cost = -sum(cashflow)
+        optimized_cost = sum(
+            price * mw * dt
+            for price, mw in zip(market.prices_eur_per_mwh, consumption)
+        )
+        gross_consumption_value = self.value_eur_per_mwh * self.energy_mwh
 
         return AssetDispatch(
             asset_name=self.name,
@@ -154,6 +170,7 @@ class FlexibleLoad:
                 "baseline_cost_eur": baseline_cost,
                 "optimized_cost_eur": optimized_cost,
                 "flex_value_eur": baseline_cost - optimized_cost,
+                "gross_consumption_value_eur": gross_consumption_value,
             },
         )
 
@@ -209,8 +226,15 @@ class BatteryStorage:
         if self.grid_points < 2:
             raise ValueError("grid_points must be at least 2")
 
-        terminal_soc = self.initial_soc_mwh if self.terminal_soc_mwh is None else self.terminal_soc_mwh
-        for label, soc in (("initial_soc_mwh", self.initial_soc_mwh), ("terminal_soc_mwh", terminal_soc)):
+        terminal_soc = (
+            self.initial_soc_mwh
+            if self.terminal_soc_mwh is None
+            else self.terminal_soc_mwh
+        )
+        for label, soc in (
+            ("initial_soc_mwh", self.initial_soc_mwh),
+            ("terminal_soc_mwh", terminal_soc),
+        ):
             if soc < -1e-9 or soc > self.capacity_mwh + 1e-9:
                 raise ValueError(f"{label} must be within [0, capacity_mwh]")
 
@@ -263,6 +287,7 @@ class BatteryStorage:
                 raise RuntimeError("battery path reconstruction failed")
             idx, path_power[t], path_cashflow[t] = parent
 
+        throughput_mwh = sum(abs(power_mw) * market.timestep_hours for power_mw in path_power)
         return AssetDispatch(
             asset_name=self.name,
             asset_type="battery",
@@ -274,6 +299,10 @@ class BatteryStorage:
                 "round_trip_efficiency": self.round_trip_efficiency,
                 "initial_soc_mwh": states[initial_idx],
                 "terminal_soc_mwh": states[terminal_idx],
+                "throughput_mwh": round(throughput_mwh, 6),
+                "equivalent_cycles": round(
+                    throughput_mwh / (2.0 * self.capacity_mwh), 6
+                ),
             },
         )
 

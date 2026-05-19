@@ -1,9 +1,8 @@
 """Side-by-side comparison of pricing methods.
 
-This module runs multiple pricing approaches against the same portfolio
-and market data, then collects the results into a structured comparison
-that highlights differences in valuation, risk metrics, and dispatch
-behaviour.
+This module runs multiple pricing approaches against the same portfolio and
+market data, then collects the results into a structured comparison that
+highlights differences in valuation, risk metrics, and dispatch behaviour.
 """
 
 from __future__ import annotations
@@ -38,15 +37,15 @@ class ComparisonResult:
             if "intrinsic" in self.results
             else None
         )
-        for name, res in self.results.items():
+        for name, result in self.results.items():
             approach = approach_for_method(name)
             delta = (
-                res.expected_value_eur - intrinsic_value
+                result.expected_value_eur - intrinsic_value
                 if intrinsic_value is not None
                 else None
             )
             capture_ratio = (
-                (res.expected_value_eur / intrinsic_value * 100)
+                (result.expected_value_eur / intrinsic_value * 100.0)
                 if intrinsic_value is not None and abs(intrinsic_value) > 1e-9
                 else None
             )
@@ -55,20 +54,60 @@ class ComparisonResult:
                     "method": name,
                     "practical_approach": approach.id if approach else None,
                     "economic_role": approach.economic_role if approach else None,
-                    "expected_value_eur": round(res.expected_value_eur, 2),
+                    "expected_value_eur": round(result.expected_value_eur, 2),
                     "std_dev_eur": round(
-                        float(res.diagnostics.get("cashflow_std_eur", 0.0)), 2
+                        float(result.diagnostics.get("cashflow_std_eur", 0.0)), 2
                     ),
-                    "CaR_eur": round(res.cashflow_at_risk_eur, 2),
-                    "CVaR_eur": round(res.conditional_value_at_risk_eur, 2),
-                    "risk_adj_eur": round(res.risk_adjusted_value_eur, 2),
+                    "CaR_eur": round(result.cashflow_at_risk_eur, 2),
+                    "CVaR_eur": round(result.conditional_value_at_risk_eur, 2),
+                    "risk_adj_eur": round(result.risk_adjusted_value_eur, 2),
+                    "export_mwh": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_expected_export_mwh", 0.0
+                            )
+                        ),
+                        3,
+                    ),
+                    "import_mwh": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_expected_import_mwh", 0.0
+                            )
+                        ),
+                        3,
+                    ),
+                    "capture_price_eur_per_mwh": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_capture_price_eur_per_mwh", 0.0
+                            )
+                        ),
+                        2,
+                    ),
+                    "negative_price_export_mwh": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_negative_price_export_mwh", 0.0
+                            )
+                        ),
+                        3,
+                    ),
+                    "battery_equivalent_cycles": round(
+                        float(
+                            result.diagnostics.get(
+                                "dispatch_battery_equivalent_cycles", 0.0
+                            )
+                        ),
+                        3,
+                    ),
                     "delta_vs_intrinsic_eur": (
                         round(delta, 2) if delta is not None else None
                     ),
                     "capture_ratio_pct": (
                         round(capture_ratio, 1) if capture_ratio is not None else None
                     ),
-                    "num_scenarios": res.num_scenarios,
+                    "num_scenarios": result.num_scenarios,
                 }
             )
         return rows
@@ -81,26 +120,57 @@ class ComparisonResult:
             warnings.append(
                 "intrinsic: perfect-foresight upper bound, not an executable strategy"
             )
+
         mc = self.results.get("monte_carlo")
         if mc is not None:
-            if intrinsic is not None and mc.expected_value_eur > intrinsic.expected_value_eur + 1e-2:
+            if (
+                intrinsic is not None
+                and mc.expected_value_eur > intrinsic.expected_value_eur + 1e-2
+            ):
                 warnings.append(
-                    "monte_carlo E[V] exceeds intrinsic — likely due to simulated "
-                    "path volatility and per-path perfect foresight; not a true "
-                    "extrinsic value premium"
+                    "monte_carlo E[V] exceeds base-scenario intrinsic - simulated "
+                    "path volatility and the selected dispatch policy can create "
+                    "apparent uplift; validate before treating it as executable value"
                 )
             num_paths = mc.parameters.get("num_paths", 0)
             if num_paths < 100:
                 warnings.append(
-                    f"monte_carlo: only {num_paths} paths — tail statistics "
+                    f"monte_carlo: only {num_paths} paths - tail statistics "
                     f"(CaR, CVaR) may be unreliable"
                 )
+            if mc.parameters.get("dispatch_policy") == "intrinsic_per_path":
+                warnings.append(
+                    "monte_carlo: dispatch uses full-path perfect foresight; set "
+                    "dispatch_window_hours for a more operational receding-horizon policy"
+                )
+
         rolling = self.results.get("rolling_intrinsic")
         if rolling is not None:
             warnings.append(
                 "rolling_intrinsic: still uses known prices within window "
                 "(no forecast error modelled)"
             )
+
+        for name, result in self.results.items():
+            negative_export = float(
+                result.diagnostics.get("dispatch_negative_price_export_mwh", 0.0)
+            )
+            if negative_export > 1e-6:
+                warnings.append(
+                    f"{name}: exports {negative_export:.2f} MWh during negative-price "
+                    "intervals; check curtailment logic, PPA clauses, and imbalance rules"
+                )
+
+            cycles_per_day = float(
+                result.diagnostics.get(
+                    "dispatch_max_battery_equivalent_cycles_per_day", 0.0
+                )
+            )
+            if cycles_per_day > 2.0:
+                warnings.append(
+                    f"{name}: battery cycles average {cycles_per_day:.2f}/day; "
+                    "validate degradation, warranty, and availability assumptions"
+                )
         return warnings
 
     def to_dict(self, include_timeseries: bool = False) -> dict[str, Any]:

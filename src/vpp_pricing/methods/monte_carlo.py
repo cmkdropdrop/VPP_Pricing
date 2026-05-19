@@ -26,10 +26,15 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from math import exp, floor, sqrt
+from math import ceil, exp, floor, sqrt
 
+from vpp_pricing.diagnostics import (
+    market_price_diagnostics,
+    portfolio_dispatch_diagnostics,
+)
 from vpp_pricing.market import MarketData
 from vpp_pricing.methods.base import PricingResult
+from vpp_pricing.methods.rolling_intrinsic import dispatch_with_rolling_battery_policy
 from vpp_pricing.portfolio import VirtualPowerPlant
 from vpp_pricing.risk import (
     cashflow_distribution_diagnostics,
@@ -148,6 +153,7 @@ class MonteCarloPricing:
     volatility: float = 0.15
     seed: int | None = 42
     mean_reversion: float = 0.7
+    dispatch_window_hours: float | None = None
 
     @property
     def name(self) -> str:
@@ -169,6 +175,8 @@ class MonteCarloPricing:
             raise ValueError("volatility must not be negative")
         if not 0 <= self.mean_reversion < 1:
             raise ValueError("mean_reversion must be in [0, 1)")
+        if self.dispatch_window_hours is not None and self.dispatch_window_hours <= 0:
+            raise ValueError("dispatch_window_hours must be positive when set")
 
         rng = random.Random(self.seed)
         base_probs = normalized_probabilities(
@@ -196,7 +204,21 @@ class MonteCarloPricing:
             )
 
         # Dispatch against every path
-        results = tuple(portfolio.dispatch(m) for m in all_paths)
+        if self.dispatch_window_hours is None:
+            results = tuple(portfolio.dispatch(m) for m in all_paths)
+            dispatch_policy = "intrinsic_per_path"
+            window_by_path: list[int] | None = None
+        else:
+            window_by_path = [
+                max(1, ceil(self.dispatch_window_hours / path.timestep_hours))
+                for path in all_paths
+            ]
+            results = tuple(
+                dispatch_with_rolling_battery_policy(portfolio, path, window)
+                for path, window in zip(all_paths, window_by_path)
+            )
+            dispatch_policy = "rolling_intrinsic_per_path"
+
         cashflows = [r.total_cashflow_eur for r in results]
         probs = normalized_probabilities(
             [m.probability for m in all_paths], len(all_paths)
@@ -223,9 +245,15 @@ class MonteCarloPricing:
                 "volatility": self.volatility,
                 "mean_reversion": self.mean_reversion,
                 "seed": self.seed,
+                "dispatch_policy": dispatch_policy,
+                "dispatch_window_hours": self.dispatch_window_hours,
             },
             diagnostics={
                 "num_paths_total": len(all_paths),
+                "dispatch_policy": dispatch_policy,
+                "dispatch_window_intervals": (
+                    sorted(set(window_by_path)) if window_by_path is not None else None
+                ),
                 "base_scenario_probabilities": {
                     market.name: round(probability, 6)
                     for market, probability in zip(markets, base_probs)
@@ -236,5 +264,8 @@ class MonteCarloPricing:
                 },
                 **metrics.diagnostics(),
                 **cashflow_distribution_diagnostics(cashflows, probs),
+                **market_price_diagnostics(markets, prefix="base_market"),
+                **market_price_diagnostics(all_paths, prefix="simulated_market"),
+                **portfolio_dispatch_diagnostics(results, probs),
             },
         )

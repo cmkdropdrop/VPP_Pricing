@@ -56,6 +56,9 @@ class ComparisonSummaryTests(unittest.TestCase):
 
         # Intrinsic capture ratio should be 100%
         self.assertAlmostEqual(intrinsic_row["capture_ratio_pct"], 100.0)
+        self.assertGreater(intrinsic_row["export_mwh"], 0.0)
+        self.assertGreater(intrinsic_row["capture_price_eur_per_mwh"], 0.0)
+        self.assertGreater(intrinsic_row["battery_equivalent_cycles"], 0.0)
         # Rolling with small window should capture less than 100%
         self.assertIsNotNone(rolling_row["capture_ratio_pct"])
         self.assertLessEqual(rolling_row["capture_ratio_pct"], 100.1)

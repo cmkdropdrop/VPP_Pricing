@@ -70,6 +70,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.7,
         help="AR(1) mean-reversion coefficient for MC shock process (0-1)",
     )
+    compare_parser.add_argument(
+        "--mc-dispatch-window-hours",
+        type=float,
+        default=None,
+        help=(
+            "if set, dispatch MC paths with a rolling battery look-ahead window "
+            "instead of full-path perfect foresight"
+        ),
+    )
 
     approaches_parser = subparsers.add_parser(
         "approaches", help="list practical VPP pricing approaches and risks"
@@ -180,6 +189,7 @@ def _cmd_compare(args, portfolio, markets) -> int:
                     volatility=args.mc_volatility,
                     seed=args.mc_seed,
                     mean_reversion=args.mc_mean_reversion,
+                    dispatch_window_hours=args.mc_dispatch_window_hours,
                 )
             )
         else:
@@ -252,18 +262,18 @@ def _print_summary(payload: dict) -> None:
 def _print_comparison(result) -> None:
     from vpp_pricing.comparison import ComparisonResult
 
-    print(f"\n{'=' * 98}")
+    print(f"\n{'=' * 110}")
     print(f"  VPP PRICING METHOD COMPARISON -- {result.portfolio_name}")
-    print(f"{'=' * 98}")
+    print(f"{'=' * 110}")
     print(f"  Base scenarios: {result.num_scenarios}")
     print()
 
     header = (
-        f"  {'Method':<22} {'Approach':<18} {'E[V] EUR':>12} {'Std EUR':>10} "
+        f"  {'Method':<22} {'Approach':<30} {'E[V] EUR':>12} {'Std EUR':>10} "
         f"{'CaR EUR':>12} {'CVaR EUR':>12} {'Capture%':>9}"
     )
     print(header)
-    print(f"  {'-' * 96}")
+    print(f"  {'-' * 108}")
 
     for row in result.summary_table():
         approach = row.get("practical_approach") or "-"
@@ -271,12 +281,28 @@ def _print_comparison(result) -> None:
         capture_str = f"{capture:>8.1f}%" if capture is not None else "       -"
         print(
             f"  {row['method']:<22} "
-            f"{approach:<18} "
+            f"{approach:<30} "
             f"{row['expected_value_eur']:>12.2f} "
             f"{row['std_dev_eur']:>10.2f} "
             f"{row['CaR_eur']:>12.2f} "
             f"{row['CVaR_eur']:>12.2f} "
             f"{capture_str}"
+        )
+
+    print(f"\n  Dispatch diagnostics:")
+    print(
+        f"  {'Method':<22} {'Export MWh':>11} {'Import MWh':>11} "
+        f"{'Capture EUR/MWh':>16} {'Neg-price exp':>14} {'Batt cycles':>12}"
+    )
+    print(f"  {'-' * 96}")
+    for row in result.summary_table():
+        print(
+            f"  {row['method']:<22} "
+            f"{row['export_mwh']:>11.2f} "
+            f"{row['import_mwh']:>11.2f} "
+            f"{row['capture_price_eur_per_mwh']:>16.2f} "
+            f"{row['negative_price_export_mwh']:>14.2f} "
+            f"{row['battery_equivalent_cycles']:>12.2f}"
         )
 
     # Delta analysis vs intrinsic
@@ -297,7 +323,7 @@ def _print_comparison(result) -> None:
         for warning in warnings:
             print(f"    * {warning}")
 
-    print(f"\n{'=' * 98}\n")
+    print(f"\n{'=' * 110}\n")
 
 
 if __name__ == "__main__":
