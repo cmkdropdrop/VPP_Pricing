@@ -37,8 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument(
         "--methods",
         nargs="+",
-        default=["intrinsic", "rolling_intrinsic", "monte_carlo"],
-        help="pricing methods to compare (default: all three)",
+        default=["intrinsic", "rolling_intrinsic", "monte_carlo", "gan"],
+        help="pricing methods to compare (default: intrinsic, rolling, MC, GAN)",
     )
     compare_parser.add_argument(
         "--window-hours",
@@ -76,6 +76,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "if set, dispatch MC paths with a rolling battery look-ahead window "
+            "instead of full-path perfect foresight"
+        ),
+    )
+    compare_parser.add_argument(
+        "--gan-paths",
+        type=int,
+        default=200,
+        help="number of GAN-generated price paths",
+    )
+    compare_parser.add_argument(
+        "--gan-epochs",
+        type=int,
+        default=250,
+        help="training epochs for the dependency-free GAN baseline",
+    )
+    compare_parser.add_argument(
+        "--gan-latent-dim",
+        type=int,
+        default=8,
+        help="latent dimension for GAN price-curve generation",
+    )
+    compare_parser.add_argument(
+        "--gan-learning-rate",
+        type=float,
+        default=0.01,
+        help="learning rate for generator and discriminator updates",
+    )
+    compare_parser.add_argument(
+        "--gan-seed",
+        type=int,
+        default=42,
+        help="random seed for GAN training and generation",
+    )
+    compare_parser.add_argument(
+        "--gan-dispatch-window-hours",
+        type=float,
+        default=None,
+        help=(
+            "if set, dispatch GAN paths with a rolling battery look-ahead window "
             "instead of full-path perfect foresight"
         ),
     )
@@ -190,6 +229,18 @@ def _cmd_compare(args, portfolio, markets) -> int:
                     seed=args.mc_seed,
                     mean_reversion=args.mc_mean_reversion,
                     dispatch_window_hours=args.mc_dispatch_window_hours,
+                )
+            )
+        elif name == "gan":
+            method_instances.append(
+                get_method(
+                    name,
+                    num_paths=args.gan_paths,
+                    epochs=args.gan_epochs,
+                    latent_dim=args.gan_latent_dim,
+                    learning_rate=args.gan_learning_rate,
+                    seed=args.gan_seed,
+                    dispatch_window_hours=args.gan_dispatch_window_hours,
                 )
             )
         else:

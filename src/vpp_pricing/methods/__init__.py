@@ -1,11 +1,13 @@
 """Pricing methods for VPP valuation research."""
 
 from vpp_pricing.methods.base import PricingMethod, PricingResult
+from vpp_pricing.methods.gan import GANPricing
 from vpp_pricing.methods.intrinsic import IntrinsicPricing
 from vpp_pricing.methods.rolling_intrinsic import RollingIntrinsicPricing
 from vpp_pricing.methods.monte_carlo import MonteCarloPricing
 
 __all__ = [
+    "GANPricing",
     "PricingMethod",
     "PricingResult",
     "IntrinsicPricing",
@@ -14,6 +16,7 @@ __all__ = [
 ]
 
 REGISTRY: dict[str, type[PricingMethod]] = {
+    "gan": GANPricing,
     "intrinsic": IntrinsicPricing,
     "rolling_intrinsic": RollingIntrinsicPricing,
     "monte_carlo": MonteCarloPricing,

@@ -20,6 +20,7 @@ Siehe auch: `docs/practical_vpp_pricing.md`.
 | Intrinsic Benchmark | Obere Schranke und Opportunitaetskosten | Asset Owner, Analysten, Kreditgeber | `intrinsic` |
 | Rolling Forecast Dispatch | Ausfuehrbare Intraday-/Bilanzkreisoptimierung | Aggregatoren, BRPs, Batteriespeichervermarkter | `rolling_intrinsic` |
 | Stochastic Merchant Bidding | Probabilistische Merchant- und Tail-Bewertung | Storage-Owner, Optimierer, Trading Desks | `monte_carlo` |
+| GAN Scenario Generation | ML-basierte Szenario-Erweiterung und Stress-Tests | Quant Desks, Storage-Optimierer, RTM-Analysten | `gan` |
 | Balancing / Ancillary Services | Praequalifizierte Leistung plus Aktivierung | BSPs, C&I-DR, VPP-Aggregatoren | geplant |
 | Retail Tariff Flex | Kundengeraete fuer Retail- und Netzflexibilitaet | Retailer, Utilities, Residential-VPPs | geplant |
 | Hedged Route-to-Market | PPA-/Direktvermarktung plus Rest-Bilanzrisiko | Erneuerbare, PPAs, Utility Desks | geplant |
@@ -32,6 +33,7 @@ Siehe auch: `docs/practical_vpp_pricing.md`.
 | **Intrinsic Value** | Perfekte Voraussicht ueber den gesamten Lieferzeitraum. Jedes Asset optimiert gegen die vollstaendige Preiskurve. | Obere Schranke, deterministisch, schnell | Keine executable Trading-Strategie |
 | **Rolling Intrinsic** | Rollierende Optimierung mit begrenztem Vorhersagefenster. Batterien und flexible Lasten werden je Fenster optimiert, Commit nur fuer die aktuelle Stunde. | Naeher an operativer Bilanzkreis-/Intraday-Praxis | Innerhalb des Fensters weiterhin perfekte Voraussicht; keine Forecast-Fehler |
 | **Monte-Carlo Extrinsic** | AR(1)-Preispfad-Simulation um Basiskurven mit konfigurierbarer Mean-Reversion, Drift-Korrektur und additiver Behandlung von Null-/Negativpreisen. Optional mit rollierender Dispatch-Policy je Pfad via `--mc-dispatch-window-hours`. | Erfasst Optionswert-Sensitivitaet, Tail-Risiko und Streuung | Default bleibt per-path perfect foresight; noch kein Multi-Market-Bidding |
+| **GAN ML Scenario Pricing** | Dependency-freier Generator-/Diskriminator-Ansatz, der normalisierte Strompreis-Kurven lernt und synthetische Pfade fuer Dispatch und Risikometriken erzeugt. Optional mit rollierender Dispatch-Policy via `--gan-dispatch-window-hours`. | Datengetriebene Szenario-Erweiterung, nichtlineare Preisformen, ML-Vergleich gegen MC | Kleine Szenario-Sets koennen Overfitting oder Mode Collapse erzeugen; kein Ersatz fuer Out-of-sample-Kalibrierung |
 
 ---
 
@@ -39,7 +41,7 @@ Siehe auch: `docs/practical_vpp_pricing.md`.
 
 Alle Ergebnisse basieren auf den mitgelieferten Beispieldaten in `examples/`.
 Reproduzierbar via `PYTHONPATH=src python examples/run_analyses.py`.
-Die Beispielanalysen nutzen 80 Monte-Carlo-Pfade je Vergleich und Seed 42, damit
+Die Beispielanalysen nutzen 40 Monte-Carlo-Pfade, 16 GAN-Pfade und Seed 42, damit
 die Chart-Generierung reproduzierbar und fuer lokale Doku-Laeufe praktikabel bleibt.
 
 ### Marktdaten
@@ -90,34 +92,40 @@ Die folgende Tabelle zeigt die Ergebnisse aller Portfolios gegen das erweiterte 
 |---|---|---:|---:|---:|---:|---:|
 | **Demo VPP** | Intrinsic | 3,117 | 2,838 | 1,433 | 1,433 | 100.0% |
 | | Rolling (6h) | 2,605 | 2,735 | 1,070 | 1,070 | 83.6% |
-| | Monte Carlo | 2,947 | 3,218 | 1,085 | 960 | 94.5% |
+| | Monte Carlo | 2,852 | 2,954 | 1,175 | 1,105 | 91.5% |
+| | GAN ML | 2,679 | 821 | 1,450 | 1,450 | 85.9% |
 | **Merchant BESS** | Intrinsic | 9,213 | 10,671 | 3,813 | 3,813 | 100.0% |
 | | Rolling (8h) | 9,213 | 10,671 | 3,813 | 3,813 | 100.0% |
-| | Monte Carlo | 11,280 | 12,460 | 4,230 | 3,562 | 122.4% |
+| | Monte Carlo | 11,099 | 11,874 | 4,294 | 3,609 | 120.5% |
+| | GAN ML | 12,842 | 5,170 | 4,819 | 4,819 | 139.4% |
 | **Renewable Hybrid** | Intrinsic | 15,892 | 8,329 | 4,694 | 4,694 | 100.0% |
 | | Rolling (6h) | 15,855 | 8,320 | 4,690 | 4,690 | 99.8% |
-| | Monte Carlo | 16,218 | 9,336 | 7,145 | 4,578 | 102.1% |
+| | Monte Carlo | 15,949 | 8,531 | 8,721 | 4,298 | 100.4% |
+| | GAN ML | 15,433 | 2,261 | 12,592 | 12,592 | 97.1% |
 | **Storage Only** | Intrinsic | 2,993 | 3,339 | 1,298 | 1,298 | 100.0% |
 | | Rolling (8h) | 2,993 | 3,339 | 1,298 | 1,298 | 100.0% |
-| | Monte Carlo | 3,634 | 3,823 | 1,477 | 1,221 | 121.4% |
+| | Monte Carlo | 3,573 | 3,674 | 1,477 | 1,292 | 119.4% |
+| | GAN ML | 4,468 | 1,792 | 1,630 | 1,630 | 149.3% |
 | **Industrial Site** | Intrinsic | -2,534 | 912 | -3,638 | -3,638 | 100.0% |
 | | Rolling (6h) | -2,702 | 963 | -3,895 | -3,895 | 93.4% |
-| | Monte Carlo | -2,602 | 967 | -3,919 | -4,143 | 97.3% |
+| | Monte Carlo | -2,551 | 873 | -3,773 | -3,905 | 99.3% |
+| | GAN ML | -2,400 | 418 | -3,038 | -3,038 | 105.3% |
 | **Demand Response** | Intrinsic | -8,512 | 3,824 | -16,346 | -16,346 | 100.0% |
 | | Rolling (6h) | -9,799 | 4,209 | -18,307 | -18,307 | 84.9% |
-| | Monte Carlo | -9,548 | 4,504 | -18,844 | -21,097 | 87.8% |
+| | Monte Carlo | -9,300 | 4,090 | -17,636 | -20,144 | 90.7% |
+| | GAN ML | -8,766 | 1,561 | -11,845 | -11,845 | 97.0% |
 
 ### Capture Ratio ueber alle Archetypen
 
 ![Cross-Portfolio Capture](docs/img/cross_portfolio_capture.png)
 
 **Interpretation:**
-- **Speicher-dominierte Portfolios** (Merchant BESS, Storage Only) zeigen den hoechsten MC-Capture >115%.
-  Das liegt an hoeherer Pfadvolatilitaet und rollierendem Dispatch innerhalb der simulierten Pfade.
-  Der Wert ist eine Sensitivitaet, kein automatisch realisierbares Extrinsic-Premium.
+- **Speicher-dominierte Portfolios** (Merchant BESS, Storage Only) zeigen den hoechsten MC- und GAN-Capture.
+  Das liegt an hoeherer Pfadvolatilitaet, generierten Stressformen und rollierendem Dispatch innerhalb der synthetischen Pfade.
+  Der Wert ist eine Sensitivitaet, kein automatisch realisierbares Extrinsic- oder ML-Premium.
 - **Erneuerbare-dominierte Portfolios** (Renewable Hybrid) zeigen MC nahe 100% -
   Solaranlagen und Windanlagen koennen Preisvolatilitaet kaum aktiv ausnutzen.
-- **Last-dominierte Portfolios** (Industrial Site, Demand Response) zeigen MC Capture <100%.
+- **Last-dominierte Portfolios** (Industrial Site, Demand Response) zeigen MC/GAN-Werte nahe oder unter 100%.
   Rollierende flexible Lasten sehen nur das Forecast-Fenster und koennen guenstige Full-Horizon-Zeitpunkte verpassen.
 - **Rolling Intrinsic** ist fuer reine Speicher mit ausreichendem Fenster fast identisch zum Intrinsic-Benchmark.
   Bei Portfolios mit viel flexibler Last faellt der Wertverlust auch bei 6h-Fenstern deutlich aus.
@@ -134,7 +142,8 @@ mehr Durchsatz kommt, und ob die Zyklenannahmen mit Degradation und Garantiebedi
 
 Der 100 MWh / 50 MW Grossspeicher zeigt die schaerfsten Methoden-Unterschiede:
 - Intrinsic und Rolling (8h) sind identisch - das 8h-Fenster reicht fuer das 24h-Arbitrage-Profil.
-- Monte Carlo liegt +22.4% ueber Intrinsic durch zusaetzliche Pfadvolatilitaet.
+- Monte Carlo liegt +20.5% ueber Intrinsic durch zusaetzliche Pfadvolatilitaet.
+- GAN ML liegt +39.4% ueber Intrinsic; das ist ein starker Hinweis auf ML-generierte Upside-Szenarien und muss gegen Out-of-sample-Preisverteilungen, Liquiditaet und Degradation validiert werden.
 
 ### Merchant BESS - Scarcity-Dispatch
 
@@ -181,7 +190,7 @@ Unter 3h geht signifikanter Wert verloren.
 Die MC-Volatilitaets-Analyse zeigt:
 - Bei vol=0 entspricht MC exakt dem Intrinsic-Wert (9,213 EUR).
 - Der E[V]-Anstieg mit Volatilitaet ist **monoton und konvex** - ein Hinweis auf starke Pfadoptionalitaet.
-- Bei vol=0.50 liegt MC bei 23,933 EUR (+160% vs. Intrinsic).
+- Bei vol=0.50 liegt MC bei 22,674 EUR (+146% vs. Intrinsic).
 - Die Standardabweichung steigt erst ab vol>0.20 merklich - die Pfadvolatilitaet erzeugt asymmetrisch mehr Upside als Downside fuer optimierbare Assets.
 
 **Warnung:** In der Praxis ist der MC E[V] > Intrinsic E[V] kein Extrinsic-Value-Premium,
@@ -198,9 +207,12 @@ Grenze je Pfad, waehrend ein 4h-rollierender Dispatch die operative Umsetzbarkei
 |---|---:|---:|
 | Intrinsic | 441 | 100.0% |
 | Rolling (1.5h) | 312 | 70.7% |
-| Monte Carlo | 426 | 96.6% |
+| Monte Carlo | 429 | 97.4% |
+| GAN ML | 491 | 111.4% |
 
 Bei 15-min-Aufloesung mit nur 1.5h-Fenster erfasst Rolling Intrinsic nur 70.7%.
+GAN ML erzeugt in diesem kleinen 3-Szenario-Set einen Wert ueber Intrinsic; das ist eine Modellwarnung
+fuer kleine Trainingsmengen und nicht als realisierbarer Mehrwert zu lesen.
 Sub-hourly-Maerkte erfordern laengere Fenster relativ zur Intervalllaenge.
 
 ---
@@ -225,11 +237,13 @@ src/vpp_pricing/
         intrinsic.py         # Intrinsic Value
         rolling_intrinsic.py # Rolling Intrinsic
         monte_carlo.py       # Monte-Carlo Extrinsic (AR(1) mit Drift-Korrektur)
+        gan.py               # GAN ML Scenario Pricing
 tests/
     test_assets.py           # Asset-Dispatch-Tests
     test_pricing.py          # Pricing-Methoden-Tests
     test_practical.py        # Praxis-Archetypen-Tests
     test_monte_carlo.py      # MC Drift-Korrektur und Sensitivitaeten
+    test_gan.py              # GAN-Szenariogenerator und Registry
     test_comparison.py       # Mispricing-Warnungen und Capture Ratio
 docs/
     practical_vpp_pricing.md # Ausfuehrliche Praxis-Dokumentation
@@ -291,12 +305,15 @@ vpp-price compare examples/storage_only.json examples/data/week_scenarios.csv \
 vpp-price compare examples/sample_portfolio.json examples/data/extended_scenarios.csv \
     --scenario-column scenario \
     --probability-column probability \
-    --methods intrinsic rolling_intrinsic monte_carlo \
+    --methods intrinsic rolling_intrinsic monte_carlo gan \
     --window-hours 4 \
     --mc-paths 200 \
     --mc-volatility 0.20 \
     --mc-mean-reversion 0.7 \
     --mc-dispatch-window-hours 4 \
+    --gan-paths 200 \
+    --gan-epochs 250 \
+    --gan-dispatch-window-hours 4 \
     --output runner_outputs/comparison.json
 
 # Praxis-Archetypen und Mispricing-Risiken anzeigen
@@ -321,20 +338,25 @@ Capture Price, negative-price exposure und Batteriezyklen:
 ==================================================================================================
   Base scenarios: 5
 
-  Method                 Approach               E[V] EUR    Std EUR      CaR EUR     CVaR EUR  Capture%
+  Method                 Approach                           E[V] EUR    Std EUR      CaR EUR     CVaR EUR  Capture%
   ------------------------------------------------------------------------------------------------
-  intrinsic              benchmark_intrinsic      9213.36   10671.41      3812.60      3812.60    100.0%
-  rolling_intrinsic      rolling_forecast_dispatch 9213.36  10671.41      3812.60      3812.60    100.0%
-  monte_carlo            stochastic_merchant_bidding 11280.02 12459.87    4229.98      3561.93    122.4%
+  intrinsic              benchmark_intrinsic                 9213.36   10671.41      3812.60      3812.60    100.0%
+  rolling_intrinsic      rolling_forecast_dispatch           9213.36   10671.41      3812.60      3812.60    100.0%
+  monte_carlo            stochastic_merchant_bidding        11099.48   11874.28      4293.60      3608.87    120.5%
+  gan                    ml_gan_scenario_generation         12841.83    5169.58      4818.87      4818.87    139.4%
 
   Delta vs. intrinsic (perfect-foresight benchmark):
     rolling_intrinsic             +0.00 EUR  (+0.0%)
-    monte_carlo                +2066.66 EUR  (+22.4%)
+    monte_carlo                +1886.12 EUR  (+20.5%)
+    gan                        +3628.47 EUR  (+39.4%)
 
   Mispricing warnings:
     * intrinsic: perfect-foresight upper bound, not an executable strategy
     * monte_carlo E[V] exceeds base-scenario intrinsic - simulated path volatility
       and the selected dispatch policy can create apparent uplift
+    * gan E[V] exceeds base-scenario intrinsic - generated price paths and the selected
+      dispatch policy can create apparent ML uplift
+    * gan: trained on only 5 price scenarios; adversarial models can overfit or collapse
     * rolling_intrinsic: still uses known prices within window (no forecast error modelled)
 ==================================================================================================
 ```
@@ -354,6 +376,10 @@ Capture Price, negative-price exposure und Batteriezyklen:
   sodass E[sim_price] = base_price (unbiased) fuer jeden Zeitschritt gilt.
 - Null- und Negativpreise werden additiv mit einem EUR/MWh-Preis-Skalenfloor simuliert, statt lognormal multipliziert.
 - Mean-Reversion (0 = unabhaengige Schocks, nahe 1 = persistent) ist konfigurierbar via `--mc-mean-reversion`.
+- GAN ML trainiert eine kleine Generator-/Diskriminator-Architektur auf je Zeitschritt normalisierten Preisvektoren.
+- Die GAN-Trainingsdaten werden mit Szenariowahrscheinlichkeiten gesampelt; generierte Pfade werden anschliessend
+  gleichgewichtet bewertet und optional mit derselben rollierenden Dispatch-Policy gefahren.
+- Der GAN-Output enthaelt Trainingsdiagnostik, generierte Preisverteilungskennzahlen und Warnungen bei kleinen Trainingsmengen.
 - Marktdaten werden auf endliche Preise, konsistente Szenario-Wahrscheinlichkeiten und vergleichbare Zeitachsen geprueft.
 - Der Vergleichsoutput enthaelt automatische Mispricing-Warnungen, die Nutzer auf methodenspezifische Verzerrungen hinweisen.
 
@@ -367,6 +393,7 @@ from vpp_pricing import (
     IntrinsicPricing,
     RollingIntrinsicPricing,
     MonteCarloPricing,
+    GANPricing,
 )
 
 portfolio = VirtualPowerPlant.from_json("examples/merchant_bess.json")
@@ -383,6 +410,7 @@ result = compare_methods(
         IntrinsicPricing(),
         RollingIntrinsicPricing(window_hours=6),
         MonteCarloPricing(num_paths=500, volatility=0.20, mean_reversion=0.7, seed=42),
+        GANPricing(num_paths=500, epochs=250, seed=42, dispatch_window_hours=6),
     ],
     risk_aversion=0.5,
     alpha=0.05,

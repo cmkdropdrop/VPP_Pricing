@@ -148,6 +148,47 @@ PRACTICAL_APPROACHES: tuple[PracticalPricingApproach, ...] = (
         ),
     ),
     PracticalPricingApproach(
+        id="ml_gan_scenario_generation",
+        name="GAN scenario generation / ML price-path model",
+        economic_role=(
+            "Data-driven scenario expansion for merchant valuation, scarcity tails, "
+            "negative prices, and stress testing."
+        ),
+        primary_users=(
+            "quant research teams",
+            "merchant trading desks",
+            "battery optimisers",
+            "renewable-plus-storage operators",
+        ),
+        revenue_streams=(
+            "energy arbitrage",
+            "intraday optionality",
+            "scarcity-event optionality",
+            "risk and collateral stress",
+        ),
+        markets=("day-ahead", "intraday", "imbalance reference curves"),
+        decision_style="adversarial ML scenario generation plus risk-aware dispatch",
+        implementation_status="implemented research baseline",
+        implemented_method="gan",
+        economic_relevance=(
+            "high as a scenario-generation research tool, medium as a standalone "
+            "valuation without out-of-sample validation"
+        ),
+        example_users=("quant desks", "storage optimisers", "route-to-market analysts"),
+        mispricing_risks=(
+            "too few historical scenarios cause overfitting or mode collapse",
+            "generated curves may violate regime constraints without calibration",
+            "tail events can be smoothed away if scarcity examples are scarce",
+            "ML uplift can be mistaken for executable trading value",
+        ),
+        validation_focus=(
+            "out-of-sample price-distribution backtests",
+            "tail quantile and negative-price frequency calibration",
+            "stress-scenario diversity and mode-collapse diagnostics",
+            "dispatch-value stability across random seeds",
+        ),
+    ),
+    PracticalPricingApproach(
         id="balancing_ancillary_services",
         name="Balancing and ancillary-services aggregation",
         economic_role=(

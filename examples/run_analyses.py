@@ -25,6 +25,7 @@ from vpp_pricing import (
     VirtualPowerPlant,
     load_market_csv,
     compare_methods,
+    GANPricing,
     IntrinsicPricing,
     RollingIntrinsicPricing,
     MonteCarloPricing,
@@ -64,11 +65,13 @@ COLORS = {
     "heat_wave": "#F44336",
 }
 METHOD_COLORS = {
+    "gan": "#5E35B1",
     "intrinsic": "#1976D2",
     "rolling_intrinsic": "#388E3C",
     "monte_carlo": "#E64A19",
 }
 METHOD_LABELS = {
+    "gan": "GAN ML",
     "intrinsic": "Intrinsic (Benchmark)",
     "rolling_intrinsic": "Rolling Intrinsic",
     "monte_carlo": "MC (Rolling)",
@@ -126,6 +129,8 @@ def run_comparison(
     timestep: float = 1.0,
     mc_paths: int = 200,
     mc_vol: float = 0.15,
+    gan_paths: int = 16,
+    gan_epochs: int = 35,
     window_hours: float = 6.0,
     label: str = "",
 ):
@@ -145,6 +150,12 @@ def run_comparison(
             MonteCarloPricing(
                 num_paths=mc_paths,
                 volatility=mc_vol,
+                seed=42,
+                dispatch_window_hours=window_hours,
+            ),
+            GANPricing(
+                num_paths=gan_paths,
+                epochs=gan_epochs,
                 seed=42,
                 dispatch_window_hours=window_hours,
             ),
@@ -260,11 +271,11 @@ def plot_dispatch_profile(result, scenario_idx: int, title: str, filename: str):
 def plot_multi_portfolio_comparison(results_dict: dict, filename: str):
     """Bar chart comparing E[V] capture ratios across multiple portfolios."""
     portfolios = list(results_dict.keys())
-    methods = ["intrinsic", "rolling_intrinsic", "monte_carlo"]
+    methods = ["intrinsic", "rolling_intrinsic", "monte_carlo", "gan"]
 
     fig, ax = plt.subplots(figsize=(14, 6))
     x = range(len(portfolios))
-    width = 0.25
+    width = min(0.8 / len(methods), 0.22)
 
     for i, method in enumerate(methods):
         captures = []
@@ -273,7 +284,8 @@ def plot_multi_portfolio_comparison(results_dict: dict, filename: str):
             row = next((r for r in table if r["method"] == method), None)
             captures.append(row["capture_ratio_pct"] if row and row["capture_ratio_pct"] else 0)
 
-        bars = ax.bar([xi + i * width for xi in x], captures, width,
+        offset = (i - (len(methods) - 1) / 2) * width
+        bars = ax.bar([xi + offset for xi in x], captures, width,
                       label=METHOD_LABELS[method], color=METHOD_COLORS[method], alpha=0.85)
         for bar, val in zip(bars, captures):
             if val != 0:
@@ -281,7 +293,7 @@ def plot_multi_portfolio_comparison(results_dict: dict, filename: str):
                         f"{val:.0f}%", ha="center", va="bottom", fontsize=8, fontweight="bold")
 
     ax.axhline(100, color="gray", linewidth=1, linestyle="--", alpha=0.5)
-    ax.set_xticks([xi + width for xi in x])
+    ax.set_xticks(list(x))
     ax.set_xticklabels(portfolios, fontsize=9, rotation=15, ha="right")
     ax.set_ylabel("Capture Ratio (%)", fontsize=11)
     ax.set_title("Value Capture Across VPP Archetypes", fontsize=13, fontweight="bold")
@@ -296,9 +308,9 @@ def plot_multi_portfolio_comparison(results_dict: dict, filename: str):
 def plot_cross_portfolio_dispatch_diagnostics(results_dict: dict, filename: str):
     """Show capture-price and cycling diagnostics across portfolio archetypes."""
     portfolios = list(results_dict.keys())
-    methods = ["intrinsic", "rolling_intrinsic", "monte_carlo"]
+    methods = ["intrinsic", "rolling_intrinsic", "monte_carlo", "gan"]
     x = range(len(portfolios))
-    width = 0.25
+    width = min(0.8 / len(methods), 0.22)
 
     fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
@@ -314,7 +326,7 @@ def plot_cross_portfolio_dispatch_diagnostics(results_dict: dict, filename: str)
             capture_prices.append(row["capture_price_eur_per_mwh"])
             cycles.append(row["battery_equivalent_cycles"])
 
-        offset = [xi + (i - 1) * width for xi in x]
+        offset = [xi + (i - (len(methods) - 1) / 2) * width for xi in x]
         axes[0].bar(
             offset,
             capture_prices,
@@ -366,12 +378,12 @@ def plot_mc_policy_comparison(portfolio, markets, intrinsic_ev: float, filename:
 
     for vol in vols:
         perfect_result = MonteCarloPricing(
-            num_paths=64,
+            num_paths=24,
             volatility=vol,
             seed=42,
         ).price(portfolio, markets)
         rolling_result = MonteCarloPricing(
-            num_paths=64,
+            num_paths=24,
             volatility=vol,
             seed=42,
             dispatch_window_hours=4.0,
@@ -518,37 +530,37 @@ def main():
         "Demo VPP": {
             "portfolio": str(ex / "sample_portfolio.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 80,
+            "mc_paths": 40,
             "window_hours": 6.0,
         },
         "Merchant BESS": {
             "portfolio": str(ex / "merchant_bess.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 80,
+            "mc_paths": 40,
             "window_hours": 8.0,
         },
         "Renewable Hybrid": {
             "portfolio": str(ex / "renewable_hybrid.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 80,
+            "mc_paths": 40,
             "window_hours": 6.0,
         },
         "Storage Only": {
             "portfolio": str(ex / "storage_only.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 80,
+            "mc_paths": 40,
             "window_hours": 8.0,
         },
         "Industrial Site": {
             "portfolio": str(ex / "industrial_site.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 80,
+            "mc_paths": 40,
             "window_hours": 6.0,
         },
         "Demand Response": {
             "portfolio": str(ex / "demand_response.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 80,
+            "mc_paths": 40,
             "window_hours": 6.0,
         },
     }
@@ -612,7 +624,7 @@ def main():
     summer_result = run_comparison(
         str(ex / "renewable_hybrid.json"),
         str(data / "summer_day_scenarios.csv"),
-        mc_paths=80,
+        mc_paths=40,
         window_hours=4.0,
     )
     for row in summer_result.summary_table():
@@ -640,7 +652,7 @@ def main():
         str(ex / "quarter_hourly_portfolio.json"),
         str(data / "quarter_hourly_scenarios.csv"),
         timestep=0.25,
-        mc_paths=80,
+        mc_paths=40,
         window_hours=1.5,
     )
     for row in qh_result.summary_table():
@@ -700,7 +712,7 @@ def main():
     mc_stds = []
     for vol in vols:
         r = MonteCarloPricing(
-            num_paths=80,
+            num_paths=40,
             volatility=vol,
             seed=42,
             dispatch_window_hours=8.0,

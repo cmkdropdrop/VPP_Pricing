@@ -157,6 +157,37 @@ class ComparisonResult:
                     "dispatch_window_hours for a more operational receding-horizon policy"
                 )
 
+        gan = self.results.get("gan")
+        if gan is not None:
+            if (
+                intrinsic is not None
+                and gan.expected_value_eur > intrinsic.expected_value_eur + 1e-2
+            ):
+                warnings.append(
+                    "gan E[V] exceeds base-scenario intrinsic - generated price "
+                    "paths and the selected dispatch policy can create apparent "
+                    "ML uplift; validate out of sample before treating it as "
+                    "executable value"
+                )
+            num_paths = gan.parameters.get("num_paths", 0)
+            if num_paths < 100:
+                warnings.append(
+                    f"gan: only {num_paths} generated paths - tail statistics "
+                    f"(CaR, CVaR) may be unreliable"
+                )
+            num_training = gan.diagnostics.get("num_training_scenarios", 0)
+            if num_training < 20:
+                warnings.append(
+                    f"gan: trained on only {num_training} price scenarios; "
+                    "adversarial models can overfit or collapse without a wider "
+                    "historical regime set"
+                )
+            if gan.parameters.get("dispatch_policy") == "intrinsic_per_generated_path":
+                warnings.append(
+                    "gan: generated paths use full-path perfect-foresight dispatch; "
+                    "set dispatch_window_hours for a more operational receding-horizon policy"
+                )
+
         rolling = self.results.get("rolling_intrinsic")
         if rolling is not None:
             warnings.append(

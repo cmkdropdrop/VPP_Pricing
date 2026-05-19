@@ -28,6 +28,7 @@ markets, subject to size, telemetry, metering, and coordination rules.
 | Intrinsic benchmark | Upper bound and opportunity-cost benchmark | asset owners, lenders, analysts | implemented as `intrinsic` |
 | Rolling forecast dispatch | Executable short-term optimisation and balancing-group management | VPP aggregators, BRPs, battery optimisers | implemented as `rolling_intrinsic` |
 | Stochastic merchant bidding | Scenario-based merchant valuation for storage/hybrids | storage owners, optimisation vendors, trading desks | implemented baseline as `monte_carlo` |
+| GAN scenario generation | ML-based scenario expansion and stress testing | quant desks, storage optimisers, route-to-market analysts | implemented research baseline as `gan` |
 | Balancing / ancillary services | Prequalified capacity and activation revenue | VPP aggregators, BSPs, C&I DR providers | planned |
 | Retail tariff flex | Customer device orchestration for retail and grid value | retailers, utilities, residential VPP platforms | planned |
 | Hedged route-to-market | PPA/direct-marketing value plus residual balancing risk | renewables, PPAs, utility desks | planned |
@@ -59,6 +60,7 @@ markets, subject to size, telemetry, metering, and coordination rules.
 | Perfect-foresight bias | Intrinsic benchmark used as executable value | inflated NPV, underpriced guarantees, excessive revenue-share offers |
 | Forecast and imbalance risk | Rolling dispatch, renewables, flexible load | imbalance settlement, emergency intraday buys, missed dispatch |
 | Tail-price model error | Stochastic merchant bidding | wrong scarcity option value, wrong CVaR, poor collateral planning |
+| ML overfitting / mode collapse | GAN scenario generation | generated paths overstate upside, smooth away scarcity, or understate drawdown risk |
 | Revenue-stack double counting | Storage and ancillary service optimisation | capacity sold twice, unavailable energy for activation, penalty exposure |
 | Non-delivery and baseline error | Demand response and balancing services | penalties, clawbacks, customer disputes, failed prequalification |
 | Degradation and warranty error | Batteries and EVs | overcycling, hidden capex replacement cost, warranty breach |
@@ -79,7 +81,12 @@ The implemented methods are deliberately treated as stages:
 3. `monte_carlo` is a stochastic baseline for merchant optionality and tails.
    Its default full-path dispatch is an upper-bound sensitivity; setting a
    dispatch window applies the same rolling policy inside each simulated path.
-4. Planned extensions should add explicit products, not generic algorithms:
+4. `gan` is an ML scenario-generation research baseline. It learns normalised
+   full-horizon electricity price curves with a small adversarial model, then
+   prices the generated paths through the same dispatch and risk engine. It
+   requires out-of-sample validation before any generated uplift is treated as
+   executable value.
+5. Planned extensions should add explicit products, not generic algorithms:
    balancing availability/activation, customer baseline models, hedge/PPA
    shape risk, locational network flexibility, and revenue-stack exclusivity.
 
