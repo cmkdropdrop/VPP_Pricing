@@ -71,8 +71,14 @@ markets, subject to size, telemetry, metering, and coordination rules.
 The implemented methods are deliberately treated as stages:
 
 1. `intrinsic` is a benchmark, not an executable business case.
-2. `rolling_intrinsic` is the first executable dispatch approximation.
+2. `rolling_intrinsic` is the first executable dispatch approximation for
+   batteries and flexible loads. It still assumes perfect prices inside the
+   look-ahead window and does not model forecast error or intraday liquidity.
+   Flexible loads preserve their required total energy; beyond the window the
+   implementation enforces feasibility rather than a calibrated terminal value.
 3. `monte_carlo` is a stochastic baseline for merchant optionality and tails.
+   Its default full-path dispatch is an upper-bound sensitivity; setting a
+   dispatch window applies the same rolling policy inside each simulated path.
 4. Planned extensions should add explicit products, not generic algorithms:
    balancing availability/activation, customer baseline models, hedge/PPA
    shape risk, locational network flexibility, and revenue-stack exclusivity.

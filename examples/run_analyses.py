@@ -366,15 +366,15 @@ def plot_mc_policy_comparison(portfolio, markets, intrinsic_ev: float, filename:
 
     for vol in vols:
         perfect_result = MonteCarloPricing(
-            num_paths=160,
+            num_paths=64,
             volatility=vol,
             seed=42,
         ).price(portfolio, markets)
         rolling_result = MonteCarloPricing(
-            num_paths=160,
+            num_paths=64,
             volatility=vol,
             seed=42,
-            dispatch_window_hours=8.0,
+            dispatch_window_hours=4.0,
         ).price(portfolio, markets)
         perfect.append(perfect_result.expected_value_eur)
         rolling.append(rolling_result.expected_value_eur)
@@ -403,7 +403,7 @@ def plot_mc_policy_comparison(portfolio, markets, intrinsic_ev: float, filename:
         color=METHOD_COLORS["monte_carlo"],
         linewidth=2,
         markersize=7,
-        label="MC rolling dispatch (8h)",
+        label="MC rolling dispatch (4h)",
     )
     axes[0].axhline(
         intrinsic_ev,
@@ -518,37 +518,37 @@ def main():
         "Demo VPP": {
             "portfolio": str(ex / "sample_portfolio.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 300,
+            "mc_paths": 80,
             "window_hours": 6.0,
         },
         "Merchant BESS": {
             "portfolio": str(ex / "merchant_bess.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 300,
+            "mc_paths": 80,
             "window_hours": 8.0,
         },
         "Renewable Hybrid": {
             "portfolio": str(ex / "renewable_hybrid.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 300,
+            "mc_paths": 80,
             "window_hours": 6.0,
         },
         "Storage Only": {
             "portfolio": str(ex / "storage_only.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 300,
+            "mc_paths": 80,
             "window_hours": 8.0,
         },
         "Industrial Site": {
             "portfolio": str(ex / "industrial_site.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 300,
+            "mc_paths": 80,
             "window_hours": 6.0,
         },
         "Demand Response": {
             "portfolio": str(ex / "demand_response.json"),
             "csv": str(data / "extended_scenarios.csv"),
-            "mc_paths": 300,
+            "mc_paths": 80,
             "window_hours": 6.0,
         },
     }
@@ -612,7 +612,7 @@ def main():
     summer_result = run_comparison(
         str(ex / "renewable_hybrid.json"),
         str(data / "summer_day_scenarios.csv"),
-        mc_paths=300,
+        mc_paths=80,
         window_hours=4.0,
     )
     for row in summer_result.summary_table():
@@ -640,7 +640,7 @@ def main():
         str(ex / "quarter_hourly_portfolio.json"),
         str(data / "quarter_hourly_scenarios.csv"),
         timestep=0.25,
-        mc_paths=200,
+        mc_paths=80,
         window_hours=1.5,
     )
     for row in qh_result.summary_table():
@@ -700,7 +700,7 @@ def main():
     mc_stds = []
     for vol in vols:
         r = MonteCarloPricing(
-            num_paths=300,
+            num_paths=80,
             volatility=vol,
             seed=42,
             dispatch_window_hours=8.0,

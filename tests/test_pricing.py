@@ -111,6 +111,42 @@ class PricingTests(unittest.TestCase):
             (-1.0, 1.0, -1.0, 1.0),
         )
 
+    def test_rolling_intrinsic_applies_window_to_flexible_loads(self):
+        portfolio = VirtualPowerPlant.from_dict(
+            {
+                "name": "flex_only",
+                "assets": [
+                    {
+                        "type": "flexible_load",
+                        "name": "flex",
+                        "energy_mwh": 1.0,
+                        "min_power_mw": 0.0,
+                        "max_power_mw": 1.0,
+                    }
+                ],
+            }
+        )
+        market = MarketData(
+            timestamps=("t0", "t1", "t2", "t3"),
+            prices_eur_per_mwh=(10.0, 100.0, 20.0, 120.0),
+        )
+
+        intrinsic = IntrinsicPricing().price(portfolio, [market])
+        rolling = RollingIntrinsicPricing(window_hours=2.0).price(
+            portfolio, [market]
+        )
+        full_window = RollingIntrinsicPricing(window_hours=4.0).price(
+            portfolio, [market]
+        )
+
+        self.assertAlmostEqual(intrinsic.expected_value_eur, -10.0)
+        self.assertAlmostEqual(full_window.expected_value_eur, -10.0)
+        self.assertAlmostEqual(rolling.expected_value_eur, -20.0)
+        self.assertEqual(
+            rolling.scenario_results[0].asset_dispatches[0].power_mw,
+            (-0.0, -0.0, -1.0, -0.0),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

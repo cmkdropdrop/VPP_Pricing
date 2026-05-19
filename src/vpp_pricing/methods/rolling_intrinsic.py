@@ -1,9 +1,9 @@
 """Rolling-intrinsic pricing: limited look-ahead dispatch.
 
 Instead of giving each asset the full price curve, this method reveals
-prices in a sliding window.  At each step the asset optimises over the
-next ``window_hours`` intervals and commits only the first interval.
-The window then rolls forward.
+prices in a sliding window.  At each step batteries and flexible loads
+optimise over the next ``window_hours`` intervals and commit only the
+first interval.  The window then rolls forward.
 
 This models a more realistic operator who re-optimises periodically
 with a finite forecast horizon.
@@ -16,7 +16,7 @@ Strengths:
 
 Limitations:
     * Still uses known prices within the window (no forecast error).
-    * Battery dispatch is still myopic beyond the window edge.
+    * Battery and flexible-load dispatch is still myopic beyond the window edge.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import ceil, sqrt
 
-from vpp_pricing.assets import BatteryStorage
+from vpp_pricing.assets import BatteryStorage, FlexibleLoad
 from vpp_pricing.diagnostics import (
     market_price_diagnostics,
     portfolio_dispatch_diagnostics,
@@ -228,15 +228,155 @@ def _rolling_dispatch_battery(
     )
 
 
+def _optimise_flexible_load_window(
+    load: FlexibleLoad,
+    market: MarketData,
+    *,
+    start: int,
+    window_intervals: int,
+    remaining_energy_mwh: float,
+) -> tuple[float, float, float]:
+    """Return first-step power, cashflow, and remaining energy for a flex load."""
+    if load.min_power_mw < 0 or load.max_power_mw < 0:
+        raise ValueError("load power limits must not be negative")
+    if load.min_power_mw > load.max_power_mw:
+        raise ValueError("min_power_mw must be <= max_power_mw")
+
+    dt = market.timestep_hours
+    intervals_remaining = market.intervals - start
+    if intervals_remaining <= 0:
+        raise ValueError("start must be within the market horizon")
+
+    min_total = load.min_power_mw * dt * intervals_remaining
+    max_total = load.max_power_mw * dt * intervals_remaining
+    if (
+        remaining_energy_mwh < min_total - 1e-9
+        or remaining_energy_mwh > max_total + 1e-9
+    ):
+        raise ValueError("remaining flexible-load energy is infeasible")
+
+    end = min(start + window_intervals, market.intervals)
+    window_len = end - start
+    future_intervals = intervals_remaining - window_len
+
+    min_window_energy = max(
+        load.min_power_mw * dt * window_len,
+        remaining_energy_mwh - load.max_power_mw * dt * future_intervals,
+    )
+    max_window_energy = min(
+        load.max_power_mw * dt * window_len,
+        remaining_energy_mwh - load.min_power_mw * dt * future_intervals,
+    )
+    if min_window_energy > max_window_energy + 1e-9:
+        raise ValueError("rolling flexible-load window has no feasible plan")
+
+    consumption = [load.min_power_mw for _ in range(window_len)]
+    planned_energy = load.min_power_mw * dt * window_len
+    prices = market.prices_eur_per_mwh[start:end]
+    cheapest = sorted(range(window_len), key=lambda i: prices[i])
+
+    required_extra = max(0.0, min_window_energy - planned_energy)
+    for local_idx in cheapest:
+        if required_extra <= 1e-9:
+            break
+        available = (load.max_power_mw - consumption[local_idx]) * dt
+        add = min(available, required_extra)
+        consumption[local_idx] += add / dt
+        planned_energy += add
+        required_extra -= add
+
+    optional_extra = max(0.0, max_window_energy - planned_energy)
+    for local_idx in cheapest:
+        if optional_extra <= 1e-9 or prices[local_idx] >= 0.0:
+            break
+        available = (load.max_power_mw - consumption[local_idx]) * dt
+        add = min(available, optional_extra)
+        consumption[local_idx] += add / dt
+        planned_energy += add
+        optional_extra -= add
+
+    first_consumption_mw = consumption[0]
+    power_mw = -first_consumption_mw
+    cashflow_eur = (
+        market.prices_eur_per_mwh[start] * power_mw
+        + load.value_eur_per_mwh * abs(power_mw)
+    ) * dt
+    next_remaining = remaining_energy_mwh - first_consumption_mw * dt
+    return power_mw, cashflow_eur, next_remaining
+
+
+def _rolling_dispatch_flexible_load(
+    load: FlexibleLoad, market: MarketData, window_intervals: int
+) -> AssetDispatch:
+    """Dispatch a flexible load with rolling look-ahead optimisation."""
+    dt = market.timestep_hours
+    min_energy = load.min_power_mw * dt * market.intervals
+    max_energy = load.max_power_mw * dt * market.intervals
+    if load.energy_mwh < min_energy - 1e-9 or load.energy_mwh > max_energy + 1e-9:
+        raise ValueError(
+            f"energy_mwh={load.energy_mwh} is infeasible for bounds "
+            f"[{min_energy}, {max_energy}]"
+        )
+
+    remaining = load.energy_mwh
+    power_out: list[float] = []
+    cashflow_out: list[float] = []
+
+    for t in range(market.intervals):
+        power_mw, cashflow_eur, remaining = _optimise_flexible_load_window(
+            load,
+            market,
+            start=t,
+            window_intervals=window_intervals,
+            remaining_energy_mwh=remaining,
+        )
+        power_out.append(power_mw)
+        cashflow_out.append(cashflow_eur)
+
+    consumption = [-mw for mw in power_out]
+    baseline_mw = load.energy_mwh / (dt * market.intervals)
+    baseline_cost = sum(
+        price * baseline_mw * dt for price in market.prices_eur_per_mwh
+    )
+    optimized_cost = sum(
+        price * mw * dt for price, mw in zip(market.prices_eur_per_mwh, consumption)
+    )
+    gross_consumption_value = load.value_eur_per_mwh * load.energy_mwh
+
+    return AssetDispatch(
+        asset_name=load.name,
+        asset_type="flexible_load",
+        power_mw=tuple(power_out),
+        cashflow_eur=tuple(cashflow_out),
+        metadata={
+            "energy_mwh": load.energy_mwh,
+            "terminal_remaining_energy_mwh": round(remaining, 6),
+            "window_hours": window_intervals * market.timestep_hours,
+            "window_intervals": window_intervals,
+            "baseline_cost_eur": baseline_cost,
+            "optimized_cost_eur": optimized_cost,
+            "flex_value_eur": baseline_cost - optimized_cost,
+            "gross_consumption_value_eur": gross_consumption_value,
+        },
+    )
+
+
 def dispatch_with_rolling_battery_policy(
     portfolio: VirtualPowerPlant, market: MarketData, window_intervals: int
 ) -> PortfolioDispatch:
-    """Dispatch the portfolio with rolling battery decisions."""
+    """Dispatch the portfolio with rolling battery and flexible-load decisions."""
+    if window_intervals <= 0:
+        raise ValueError("window_intervals must be positive")
+
     dispatches: list[AssetDispatch] = []
     for asset in portfolio.assets:
         if isinstance(asset, BatteryStorage):
             dispatches.append(
                 _rolling_dispatch_battery(asset, market, window_intervals)
+            )
+        elif isinstance(asset, FlexibleLoad):
+            dispatches.append(
+                _rolling_dispatch_flexible_load(asset, market, window_intervals)
             )
         else:
             dispatches.append(asset.dispatch(market))

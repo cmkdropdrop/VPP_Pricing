@@ -4,6 +4,7 @@ import unittest
 
 from vpp_pricing.comparison import compare_methods, ComparisonResult
 from vpp_pricing.market import MarketData
+from vpp_pricing.methods.base import PricingResult
 from vpp_pricing.methods.intrinsic import IntrinsicPricing
 from vpp_pricing.methods.monte_carlo import MonteCarloPricing
 from vpp_pricing.methods.rolling_intrinsic import RollingIntrinsicPricing
@@ -62,6 +63,38 @@ class ComparisonSummaryTests(unittest.TestCase):
         # Rolling with small window should capture less than 100%
         self.assertIsNotNone(rolling_row["capture_ratio_pct"])
         self.assertLessEqual(rolling_row["capture_ratio_pct"], 100.1)
+
+    def test_capture_ratio_is_sign_aware_for_net_cost_benchmarks(self):
+        result = ComparisonResult(
+            portfolio_name="cost_portfolio",
+            num_scenarios=1,
+            results={
+                "intrinsic": PricingResult(
+                    method_name="intrinsic",
+                    portfolio_name="cost_portfolio",
+                    expected_value_eur=-100.0,
+                    cashflow_at_risk_eur=-100.0,
+                    conditional_value_at_risk_eur=-100.0,
+                    risk_adjusted_value_eur=-100.0,
+                    scenario_results=(),
+                ),
+                "worse_method": PricingResult(
+                    method_name="worse_method",
+                    portfolio_name="cost_portfolio",
+                    expected_value_eur=-120.0,
+                    cashflow_at_risk_eur=-120.0,
+                    conditional_value_at_risk_eur=-120.0,
+                    risk_adjusted_value_eur=-120.0,
+                    scenario_results=(),
+                ),
+            },
+        )
+
+        table = result.summary_table()
+        worse_row = next(r for r in table if r["method"] == "worse_method")
+
+        self.assertAlmostEqual(worse_row["delta_vs_intrinsic_eur"], -20.0)
+        self.assertAlmostEqual(worse_row["capture_ratio_pct"], 80.0)
 
     def test_mispricing_warnings_include_intrinsic_benchmark_warning(self):
         portfolio = _simple_portfolio()

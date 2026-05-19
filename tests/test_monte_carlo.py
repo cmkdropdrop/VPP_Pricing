@@ -86,6 +86,18 @@ class MCDriftCorrectionTests(unittest.TestCase):
                     f"simulated price {price} is not finite/reasonable",
                 )
 
+    def test_negative_twenty_base_price_keeps_additive_dispersion(self):
+        base = MarketData(
+            timestamps=("t0",),
+            prices_eur_per_mwh=(-20.0,),
+        )
+        rng = random.Random(42)
+        paths = _simulate_paths(base, num_paths=50, volatility=0.30, rng=rng)
+
+        simulated_prices = {path.prices_eur_per_mwh[0] for path in paths}
+
+        self.assertGreater(len(simulated_prices), 1)
+
 
 class MCPricingIntegrationTests(unittest.TestCase):
     def test_mean_reversion_parameter_appears_in_result(self):

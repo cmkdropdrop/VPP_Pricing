@@ -17,6 +17,19 @@ from vpp_pricing.portfolio import VirtualPowerPlant
 from vpp_pricing.practical import approach_for_method
 
 
+def _capture_ratio_pct(value: float, benchmark: float) -> float | None:
+    """Return value retained versus the intrinsic benchmark magnitude.
+
+    A plain value / benchmark ratio is misleading when the benchmark is a net
+    cost.  For example, -120 / -100 would report 120% even though the method is
+    20 EUR worse than intrinsic.  This sign-aware definition keeps intrinsic at
+    100% and measures the delta against abs(benchmark).
+    """
+    if abs(benchmark) <= 1e-9:
+        return None
+    return 100.0 + (value - benchmark) / abs(benchmark) * 100.0
+
+
 @dataclass(frozen=True)
 class ComparisonResult:
     """Collected outputs from running multiple pricing methods."""
@@ -45,8 +58,8 @@ class ComparisonResult:
                 else None
             )
             capture_ratio = (
-                (result.expected_value_eur / intrinsic_value * 100.0)
-                if intrinsic_value is not None and abs(intrinsic_value) > 1e-9
+                _capture_ratio_pct(result.expected_value_eur, intrinsic_value)
+                if intrinsic_value is not None
                 else None
             )
             rows.append(

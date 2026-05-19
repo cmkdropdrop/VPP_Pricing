@@ -6,17 +6,17 @@ perturbation around the base curve).  The portfolio is dispatched
 against each simulated path and the distribution of outcomes is used
 to estimate expected value and risk metrics.
 
-This captures *extrinsic* value -- the option value that arises from
-the ability to react to price uncertainty, which the intrinsic method
-ignores.
+This estimates path-dependent optionality and tail risk.  With the default
+full-path dispatch policy it is an upper-bound sensitivity, not an executable
+trading strategy.
 
 Strengths:
-    * Captures optionality and extrinsic value.
+    * Captures optionality sensitivity and tail dispersion.
     * Produces a full distribution of outcomes, not just point estimates.
     * Configurable via number of paths, volatility, and seed.
 
 Limitations:
-    * Dispatch is still perfect-foresight within each simulated path.
+    * Default dispatch is still perfect-foresight within each simulated path.
     * Price model is simplistic (log-normal perturbation); for production
       use, replace with calibrated stochastic models.
     * Slower than deterministic methods due to many dispatch evaluations.
@@ -84,8 +84,11 @@ def _simulate_paths(
                     cumulative_shock - 0.5 * shock_var
                 )
             else:
-                # Handle zero/negative base prices additively
-                sim_price = base_price + cumulative_shock * abs(base_price + 20.0)
+                # Zero and negative prices cannot use a log-normal multiplier.
+                # Use an additive, zero-mean shock with a EUR/MWh scale floor so
+                # prices around -20 do not lose all simulated dispersion.
+                price_scale = max(abs(base_price), 20.0)
+                sim_price = base_price + cumulative_shock * price_scale
             prices.append(round(sim_price, 4))
 
         paths.append(
