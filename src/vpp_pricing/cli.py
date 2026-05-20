@@ -176,6 +176,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="random seed for RL training",
     )
 
+    # ---- backtest (historical product settlement) ----
+    backtest_parser = subparsers.add_parser(
+        "backtest",
+        help=(
+            "run a historical product backtest by pricing valuation-time "
+            "market data and settling the selected schedule on realized prices"
+        ),
+    )
+    _add_backtest_args(backtest_parser)
+
     validate_parser = subparsers.add_parser(
         "validate", help="validate portfolio JSON and market CSV inputs"
     )
@@ -245,12 +255,114 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_backtest_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("portfolio_json", help="path to portfolio JSON")
+    parser.add_argument(
+        "historical_market_csv",
+        help="path to historical product market CSV",
+    )
+    parser.add_argument(
+        "--method",
+        choices=("intrinsic", "rolling_intrinsic"),
+        default="intrinsic",
+        help="valuation method for each historical product",
+    )
+    parser.add_argument(
+        "--window-hours",
+        type=float,
+        default=6.0,
+        help="look-ahead window for rolling intrinsic",
+    )
+    parser.add_argument(
+        "--product-column",
+        default="product_id",
+        help="CSV product id column",
+    )
+    parser.add_argument(
+        "--as-of-column",
+        default="as_of",
+        help="CSV valuation timestamp column",
+    )
+    parser.add_argument(
+        "--timestamp-column",
+        default="timestamp",
+        help="CSV delivery timestamp column",
+    )
+    parser.add_argument(
+        "--valuation-price-column",
+        default="valuation_price_eur_per_mwh",
+        help="CSV valuation price column",
+    )
+    parser.add_argument(
+        "--settlement-price-column",
+        default="settlement_price_eur_per_mwh",
+        help="CSV realized settlement price column",
+    )
+    parser.add_argument(
+        "--scenario-column",
+        default=None,
+        help="optional CSV valuation scenario column",
+    )
+    parser.add_argument(
+        "--probability-column",
+        default=None,
+        help="optional CSV valuation scenario probability column",
+    )
+    parser.add_argument(
+        "--decision-market-name",
+        default=None,
+        help="scenario name whose dispatch schedule is settled",
+    )
+    parser.add_argument(
+        "--timestep-hours",
+        type=float,
+        default=1.0,
+        help="interval length in hours",
+    )
+    parser.add_argument(
+        "--risk-aversion",
+        type=float,
+        default=0.0,
+        help="CVaR penalty weight for risk-adjusted value",
+    )
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=0.05,
+        help="lower-tail probability for CaR and CVaR",
+    )
+    parser.add_argument(
+        "--no-timeseries",
+        action="store_true",
+        help="omit interval-level settlement data from JSON output",
+    )
+    parser.add_argument("--output", default=None, help="optional path for JSON report")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.command == "approaches":
         return _cmd_approaches(args)
+
+    if args.command == "backtest":
+        from vpp_pricing.backtest import load_historical_market_csv
+
+        portfolio = VirtualPowerPlant.from_json(args.portfolio_json)
+        products = load_historical_market_csv(
+            args.historical_market_csv,
+            product_column=args.product_column,
+            as_of_column=args.as_of_column,
+            timestamp_column=args.timestamp_column,
+            valuation_price_column=args.valuation_price_column,
+            settlement_price_column=args.settlement_price_column,
+            scenario_column=args.scenario_column,
+            probability_column=args.probability_column,
+            timestep_hours=args.timestep_hours,
+            decision_market_name=args.decision_market_name,
+        )
+        return _cmd_backtest(args, portfolio, products)
 
     portfolio = VirtualPowerPlant.from_json(args.portfolio_json)
     markets = load_market_csv(
@@ -350,6 +462,31 @@ def _cmd_compare(args, portfolio, markets) -> int:
         _write_json(payload, args.output)
 
     _print_comparison(result)
+    return 0
+
+
+def _cmd_backtest(args, portfolio, products) -> int:
+    from vpp_pricing.backtest import run_backtest
+    from vpp_pricing.methods import get_method
+
+    if args.method == "rolling_intrinsic":
+        method = get_method(args.method, window_hours=args.window_hours)
+    else:
+        method = get_method(args.method)
+
+    result = run_backtest(
+        portfolio,
+        products,
+        method,
+        risk_aversion=args.risk_aversion,
+        alpha=args.alpha,
+    )
+
+    payload = result.to_dict(include_timeseries=not args.no_timeseries)
+    if args.output:
+        _write_json(payload, args.output)
+
+    _print_backtest(result)
     return 0
 
 
@@ -497,6 +634,33 @@ def _print_comparison(result) -> None:
             print(f"    * {warning}")
 
     print(f"\n{'=' * 110}\n")
+
+
+def _print_backtest(result) -> None:
+    metrics = result.metrics()
+    print(f"\n{'=' * 96}")
+    print(f"  VPP HISTORICAL BACKTEST -- {result.portfolio_name}")
+    print(f"{'=' * 96}")
+    print(f"  Method: {result.method_name}")
+    print(f"  Products: {int(metrics['num_products'])}")
+    print(
+        "  Settlement: fixed valuation-time decision schedules repriced on "
+        "realized prices; no ex-post re-optimization."
+    )
+    print()
+    print(
+        f"  {'Mean valuation EUR':>20} {'Mean settled EUR':>20} "
+        f"{'Mean error EUR':>16} {'MAE EUR':>14} {'RMSE EUR':>14}"
+    )
+    print(f"  {'-' * 90}")
+    print(
+        f"  {metrics['mean_valuation_expected_eur']:>20.2f} "
+        f"{metrics['mean_settled_cashflow_eur']:>20.2f} "
+        f"{metrics['mean_pricing_error_eur']:>16.2f} "
+        f"{metrics['mean_absolute_error_eur']:>14.2f} "
+        f"{metrics['root_mean_squared_error_eur']:>14.2f}"
+    )
+    print(f"\n{'=' * 96}\n")
 
 
 def _print_validation_report(report) -> None:

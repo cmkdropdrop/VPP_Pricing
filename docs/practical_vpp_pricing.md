@@ -31,6 +31,7 @@ markets, subject to size, telemetry, metering, and coordination rules.
 | Stochastic VPP scenario pricing | Scenario-based valuation for portfolio cashflows and tails | aggregators, optimisation vendors, trading/risk teams | implemented baseline as `monte_carlo` |
 | GAN scenario generation | ML-based scenario expansion and stress testing | quant desks, route-to-market analysts, VPP researchers | implemented research baseline as `gan` |
 | Tabular RL dispatch baseline | Technical policy baseline for battery assets inside a VPP | research analysts, methodology reviewers | implemented appendix as `rl` |
+| Historical settlement backtest | Compare valuation-time schedules with realized settlement cashflows | route-to-market analysts, model validation, risk control | implemented baseline as `backtest` CLI/API |
 | Balancing / ancillary services | Prequalified capacity and activation revenue | VPP aggregators, BSPs, C&I DR providers | planned |
 | Retail tariff flex | Customer device orchestration for retail and grid value | retailers, utilities, residential VPP platforms | planned |
 | Hedged route-to-market | PPA/direct-marketing value plus residual balancing risk | renewables, PPAs, utility desks | planned |
@@ -90,12 +91,44 @@ The implemented methods are deliberately treated as stages:
 5. `rl` is an implemented appendix for a battery policy only. It is useful for
    comparing a simple state-based policy with the dispatch benchmarks, but it is
    not a VPP-wide orchestration or bidding model.
-6. Planned extensions should add explicit products, not generic algorithms:
+6. `backtest` is the first historical validation layer. It prices a product with
+   valuation-time data, selects a fixed schedule, and settles that schedule on
+   realized prices. It is a validation/reporting flow, not a strategy that
+   re-optimises on realized prices.
+7. Planned extensions should add explicit products, not generic algorithms:
    balancing availability/activation, customer baseline models, hedge/PPA
    shape risk, locational network flexibility, and revenue-stack exclusivity.
 
 Use `vpp-price approaches --json` to inspect the machine-readable taxonomy used
 by the code.
+
+## Historical Backtest Result
+
+`examples/run_analyses.py` now runs a synthetic two-product settlement backtest
+for `examples/merchant_bess.json` against
+`examples/data/historical_products.csv`. The result is intentionally small: it
+tests the tradeable analysis plumbing before any claim about calibrated market
+performance.
+
+| Metric | Value |
+|---|---:|
+| Products | 2 |
+| Mean valuation E[V] | 4,212 EUR |
+| Mean settled cashflow | 3,916 EUR |
+| Mean pricing error | -297 EUR |
+| Mean absolute error | 627 EUR |
+| RMSE | 693 EUR |
+
+Per product:
+
+| Product | Valuation E[V] | Settled cashflow | Error |
+|---|---:|---:|---:|
+| `day_ahead_2026_01_01` | 3,766 EUR | 2,843 EUR | -923 EUR |
+| `day_ahead_2026_01_02` | 4,659 EUR | 4,989 EUR | +330 EUR |
+
+The diagnostic point is that schedule quality is now measurable on a historical
+product axis. The current fixture is synthetic and short, so these values
+validate the analysis workflow rather than a production trading edge.
 
 ## Sources
 

@@ -23,8 +23,10 @@ import matplotlib.ticker as mticker
 
 from vpp_pricing import (
     VirtualPowerPlant,
+    load_historical_market_csv,
     load_market_csv,
     compare_methods,
+    run_backtest,
     GANPricing,
     IntrinsicPricing,
     RollingIntrinsicPricing,
@@ -69,6 +71,8 @@ METHOD_COLORS = {
     "intrinsic": "#1976D2",
     "rolling_intrinsic": "#388E3C",
     "monte_carlo": "#E64A19",
+    "settled": "#455A64",
+    "error": "#C62828",
 }
 METHOD_LABELS = {
     "gan": "GAN ML",
@@ -490,6 +494,93 @@ def plot_mc_policy_comparison(portfolio, markets, intrinsic_ev: float, filename:
     print(f"  Chart saved: docs/img/{filename}")
 
 
+def plot_backtest_results(result, filename: str):
+    """Plot valuation-time expected value against realized settlement."""
+    entries = list(result.entries)
+    product_labels = [
+        entry.product_id.replace("day_ahead_", "").replace("_", "\n")
+        for entry in entries
+    ]
+    expected = [entry.valuation_expected_value_eur for entry in entries]
+    settled = [entry.settled_cashflow_eur for entry in entries]
+    errors = [entry.pricing_error_eur for entry in entries]
+    x = range(len(entries))
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    width = 0.36
+    axes[0].bar(
+        [i - width / 2 for i in x],
+        expected,
+        width,
+        label="Valuation E[V]",
+        color=METHOD_COLORS["intrinsic"],
+        alpha=0.88,
+        edgecolor="white",
+    )
+    axes[0].bar(
+        [i + width / 2 for i in x],
+        settled,
+        width,
+        label="Settled schedule cashflow",
+        color=METHOD_COLORS["settled"],
+        alpha=0.88,
+        edgecolor="white",
+    )
+    axes[0].set_xticks(list(x))
+    axes[0].set_xticklabels(product_labels, fontsize=9)
+    axes[0].set_ylabel("EUR")
+    axes[0].set_title("Valuation vs. Realized Settlement")
+    axes[0].legend(fontsize=9)
+    axes[0].grid(True, axis="y", alpha=0.3)
+    axes[0].yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+
+    bar_colors = [
+        METHOD_COLORS["rolling_intrinsic"] if error >= 0 else METHOD_COLORS["error"]
+        for error in errors
+    ]
+    bars = axes[1].bar(
+        list(x),
+        errors,
+        0.55,
+        color=bar_colors,
+        alpha=0.88,
+        edgecolor="white",
+    )
+    axes[1].axhline(0, color="#455A64", linewidth=1, linestyle="--")
+    axes[1].set_xticks(list(x))
+    axes[1].set_xticklabels(product_labels, fontsize=9)
+    axes[1].set_ylabel("Settled - valuation E[V] (EUR)")
+    axes[1].set_title("Pricing Error by Product")
+    axes[1].grid(True, axis="y", alpha=0.3)
+    axes[1].yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+
+    for bar, value in zip(bars, errors):
+        offset = 4 if value >= 0 else -14
+        axes[1].annotate(
+            f"{value:,.0f}",
+            xy=(bar.get_x() + bar.get_width() / 2, value),
+            xytext=(0, offset),
+            textcoords="offset points",
+            ha="center",
+            va="bottom" if value >= 0 else "top",
+            fontsize=9,
+            fontweight="bold",
+            color="#263238",
+        )
+
+    fig.suptitle(
+        "Historical Settlement Backtest - Fixed Decision Schedule",
+        fontsize=13,
+        fontweight="bold",
+        y=1.02,
+    )
+    fig.tight_layout()
+    fig.savefig(IMG_DIR / filename, dpi=CHART_DPI, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Chart saved: docs/img/{filename}")
+
+
 def format_eur(v):
     if abs(v) >= 1000:
         return f"{v:,.0f}"
@@ -773,6 +864,38 @@ def main():
         "mc_dispatch_policy_comparison.png",
     )
 
+    print("\n[10] Historical settlement backtest...")
+    backtest_portfolio = VirtualPowerPlant.from_json(str(ex / "merchant_bess.json"))
+    historical_products = load_historical_market_csv(
+        str(data / "historical_products.csv")
+    )
+    backtest_result = run_backtest(
+        backtest_portfolio,
+        historical_products,
+        IntrinsicPricing(),
+    )
+    metrics = backtest_result.metrics()
+    print(
+        "    "
+        f"products={int(metrics['num_products'])}  "
+        f"mean valuation={metrics['mean_valuation_expected_eur']:>10,.2f}  "
+        f"mean settled={metrics['mean_settled_cashflow_eur']:>10,.2f}  "
+        f"MAE={metrics['mean_absolute_error_eur']:>9,.2f}  "
+        f"RMSE={metrics['root_mean_squared_error_eur']:>9,.2f}"
+    )
+    for entry in backtest_result.entries:
+        print(
+            "    "
+            f"{entry.product_id:<22} "
+            f"E[V]={entry.valuation_expected_value_eur:>9,.2f}  "
+            f"settled={entry.settled_cashflow_eur:>9,.2f}  "
+            f"error={entry.pricing_error_eur:>+9,.2f}"
+        )
+    plot_backtest_results(
+        backtest_result,
+        "backtest_historical_settlement.png",
+    )
+
     # Summary
     print("\n" + "=" * 70)
     print("  ALL ANALYSES COMPLETE")
@@ -788,6 +911,7 @@ def main():
         summary[label] = result.summary_table()
     summary["Summer: Renewable Hybrid"] = summer_result.summary_table()
     summary["Quarter-Hourly Portfolio"] = qh_result.summary_table()
+    summary["Historical Backtest"] = backtest_result.to_dict(include_timeseries=False)
 
     summary_path = base / "docs" / "analysis_results.json"
     with open(summary_path, "w") as f:

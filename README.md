@@ -5,6 +5,25 @@ Virtual Power Plants (VPPs). Der Fokus liegt auf nachvollziehbaren
 Modellannahmen, konsistenten Eingabedaten, Dispatch-Diagnostik und expliziten
 Warnungen vor methodischen Fehlinterpretationen.
 
+## TL;DR Analyseergebnisse
+
+- Das gemischte Demo-VPP liegt bei `3,117 EUR` Intrinsic-Wert pro Beispieltag;
+  Rolling Intrinsic erreicht `83.6%` davon, Monte Carlo `96.6%` und GAN `85.9%`.
+- Renewable-Hybrid-Portfolios sind in den Beispielen robust gegen begrenzten
+  Look-ahead: Winter-Rolling erreicht `99.8%`, Sommer-Rolling `96.3%`.
+- Last- und Demand-Response-Portfolios zeigen hoehere operative Sensitivitaet:
+  Demand Response faellt von `-8,512 EUR` Intrinsic auf `-9,799 EUR` Rolling
+  und damit auf `84.9%` sign-aware Capture.
+- Sub-hourly Dispatch braucht passende Fenster: Im 15-min-Fall schafft
+  Rolling Intrinsic mit `1.5h` Fenster nur `70.7%` des Intrinsic-Benchmarks.
+- Speicher-Stressfaelle zeigen starke MC/GAN-Uplifts (`132.0%` bis `149.3%`
+  Capture). Das ist Optionalitaets- und Modell-Sensitivitaet, kein
+  automatisch handelbares Trading-Premium.
+- Der neue historische Settlement-Backtest rechnet valuation-time Schedules
+  gegen Realized Prices ab: `2` synthetische Produkte, `4,212 EUR` mittlere
+  Valuation, `3,916 EUR` mittleres Settlement, `627 EUR` MAE und `693 EUR`
+  RMSE.
+
 ## Was dieses Repo leisten soll
 
 - **Belastbare Vergleichbarkeit:** Intrinsic, Rolling Intrinsic, Monte Carlo,
@@ -12,6 +31,8 @@ Warnungen vor methodischen Fehlinterpretationen.
   dieselbe Risk- und Diagnostics-Pipeline.
 - **Pruefbare Eingaben:** Portfolio-JSON und Market-CSV koennen mit
   `vpp-price validate` vor dem Pricing geprueft werden.
+- **Historische Validierung:** `vpp-price backtest` bewertet valuation-time
+  Produkte und rechnet feste Dispatch-Schedules gegen Settlement-Preise ab.
 - **Klare Grenzen:** Intrinsic ist ein Benchmark, MC/GAN/RL-Uplift ist kein
   automatisch ausfuehrbarer Trading-Mehrwert, und kurze Trainingssets werden
   explizit als Risiko markiert.
@@ -45,6 +66,7 @@ Siehe auch: `docs/practical_vpp_pricing.md`.
 | Stochastic VPP Scenario Pricing | Probabilistische Bewertung von Portfolio-Cashflows und Tail-Risiko | Aggregatoren, Optimierer, Trading-/Risk-Teams | `monte_carlo` |
 | GAN Scenario Generation | ML-basierte Szenario-Erweiterung und Stress-Tests | Quant Desks, RTM-Analysten, VPP-Research | `gan` |
 | Tabular RL Dispatch Baseline | Didaktischer Batterie-Policy-Vergleich als Zusatzbaseline | Research Analysts, Methodik-Reviewer | `rl` |
+| Historical Settlement Backtest | Valuation-time Schedule gegen realisierte Preise pruefen | RTM-Analysten, Model Validation, Risk Control | `backtest` |
 | Balancing / Ancillary Services | Praequalifizierte Leistung plus Aktivierung | BSPs, C&I-DR, VPP-Aggregatoren | geplant |
 | Retail Tariff Flex | Kundengeraete fuer Retail- und Netzflexibilitaet | Retailer, Utilities, Residential-VPPs | geplant |
 | Hedged Route-to-Market | PPA-/Direktvermarktung plus Rest-Bilanzrisiko | Erneuerbare, PPAs, Utility Desks | geplant |
@@ -68,6 +90,8 @@ Alle Ergebnisse basieren auf den mitgelieferten Beispieldaten in `examples/`.
 Reproduzierbar via `PYTHONPATH=src python examples/run_analyses.py`.
 Die Beispielanalysen nutzen 40 Monte-Carlo-Pfade, 16 GAN-Pfade und Seed 42, damit
 die Chart-Generierung reproduzierbar und fuer lokale Doku-Laeufe praktikabel bleibt.
+Der historische Backtest nutzt eine kleine synthetische Fixture und prueft den
+Settlement-Workflow, nicht eine kalibrierte Marktstrategie.
 
 ### Marktdaten
 
@@ -288,6 +312,35 @@ GAN ML erzeugt in diesem kleinen 3-Szenario-Set einen Wert ueber Intrinsic; das 
 fuer kleine Trainingsmengen und nicht als realisierbarer Mehrwert zu lesen.
 Sub-hourly-Maerkte erfordern laengere Fenster relativ zur Intervalllaenge.
 
+### Historical Settlement Backtest
+
+Der neue Backtest-Abschnitt nutzt `examples/data/historical_products.csv` und
+`examples/merchant_bess.json`. Jede Produktbewertung nutzt nur die
+valuation-time Preise; danach wird dieselbe feste Dispatch-Schedule auf
+Settlement-Preise umbewertet. Es findet keine ex-post Optimierung auf
+Settlement-Preisen statt.
+
+| Metric | Value |
+|---|---:|
+| Products | 2 |
+| Mean valuation E[V] | 4,212 EUR |
+| Mean settled cashflow | 3,916 EUR |
+| Mean pricing error | -297 EUR |
+| Mean absolute error | 627 EUR |
+| RMSE | 693 EUR |
+
+| Product | Valuation E[V] | Settled cashflow | Error |
+|---|---:|---:|---:|
+| `day_ahead_2026_01_01` | 3,766 EUR | 2,843 EUR | -923 EUR |
+| `day_ahead_2026_01_02` | 4,659 EUR | 4,989 EUR | +330 EUR |
+
+![Historical Settlement Backtest](docs/img/backtest_historical_settlement.png)
+
+Die Zahlen dokumentieren den neuen Analysepfad, nicht einen kalibrierten
+Trading-Edge. Fuer echte Marktvalidierung braucht es reale Forecast-Snapshots,
+Settlementpreise, Gebuehren, Liquiditaet, Imbalance-Kosten und Out-of-sample
+Regime-Splits. Details stehen in `docs/historical_backtest_results.md`.
+
 ---
 
 ## Projektstruktur
@@ -302,6 +355,7 @@ src/vpp_pricing/
     results.py               # Dispatch- und Ergebnis-Datenstrukturen
     risk.py                  # Gewichtete Erwartungs-, CaR-, CVaR- und Streuungsmetriken
     pricing.py               # Legacy-API (delegiert an Intrinsic)
+    backtest.py              # Historische Produkt- und Settlement-Backtests
     comparison.py            # Side-by-side Methodenvergleich mit Mispricing-Warnungen
     diagnostics.py           # VPP-, Asset-Typ-, Dispatch-, Markt- und Zyklen-Diagnostik
     validation.py            # Eingabevalidierung und fachliche Qualitaetschecks
@@ -322,11 +376,13 @@ tests/
     test_gan.py              # GAN-Szenariogenerator und Registry
     test_comparison.py       # Mispricing-Warnungen und Capture Ratio
     test_validation.py       # Input-Validation und CLI-Validate
+    test_backtest.py         # Historische Produktstruktur, Settlement und CLI
 docs/
     input_contract.md        # Portfolio-/Market-Schema, Einheiten, Vorzeichen
     methodology.md           # Formale Methodik, Risikomasse und Modellgrenzen
     literature_comparison.md # Vergleich mit wissenschaftlicher Literatur
     practical_vpp_pricing.md # Ausfuehrliche Praxis-Dokumentation
+    historical_backtest_results.md # Backtest-Ergebnisse und Interpretation
     img/                     # Generierte Analyse-Charts
 examples/
     sample_portfolio.json    # Gemischtes Referenz-VPP
@@ -342,6 +398,7 @@ examples/
         day_ahead_prices.csv
         scenario_prices.csv
         extended_scenarios.csv
+        historical_products.csv
         summer_day_scenarios.csv
         week_scenarios.csv
         quarter_hourly_scenarios.csv
@@ -386,6 +443,10 @@ vpp-price compare examples/sample_portfolio.json examples/data/week_scenarios.cs
     --scenario-column scenario \
     --probability-column probability \
     --window-hours 12
+
+# Historischer Settlement-Backtest
+vpp-price backtest examples/merchant_bess.json examples/data/historical_products.csv \
+    --output runner_outputs/backtest.json
 
 # Vergleich mit allen Parametern
 vpp-price compare examples/sample_portfolio.json examples/data/extended_scenarios.csv \
@@ -482,6 +543,10 @@ Wert, negative-price exposure und Batteriezyklen:
 - Szenariowahrscheinlichkeiten werden normalisiert; wenn alle Gewichte null sind, wird gleichgewichtet.
 - Capture Ratio ist sign-aware definiert als `100 + (method_value - intrinsic_value) / abs(intrinsic_value) * 100`.
   Dadurch bedeuten niedrigere Werte bei negativen Portfolio-Cashflows tatsaechlich hoehere Kosten gegenueber Intrinsic.
+- Historical Backtest trennt valuation-time Information und Settlement:
+  Erst wird auf den Produkt-Snapshot bewertet, dann wird eine feste Schedule
+  gegen realisierte Preise abgerechnet. Settlement-Preise werden nicht zur
+  nachtraeglichen Dispatch-Optimierung genutzt.
 - Rolling Intrinsic optimiert Batterien und flexible Lasten mit begrenztem Look-ahead; fixe Lasten, erneuerbare Profile
   und einfache Generatoren bleiben deterministisch gegen die jeweilige Preiskurve.
 - Flexible Lasten behalten ihre Gesamtenergie ein; ausserhalb des Forecast-Fensters wird nur Feasibility,

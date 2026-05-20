@@ -31,3 +31,6 @@ Desktop.ini
 
 # Runner outputs
 runner_outputs/
+
+# Local planning docs
+docs/quant_improvement_plan.md

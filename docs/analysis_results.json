@@ -838,5 +838,135 @@
       "capture_ratio_pct": 111.4,
       "num_scenarios": 16
     }
-  ]
+  ],
+  "Historical Backtest": {
+    "portfolio_name": "Merchant BESS 2h",
+    "method": "intrinsic",
+    "metrics": {
+      "num_products": 2,
+      "total_valuation_expected_eur": 8424.97457,
+      "total_settled_cashflow_eur": 7831.894318,
+      "mean_valuation_expected_eur": 4212.487285,
+      "mean_settled_cashflow_eur": 3915.947159,
+      "mean_pricing_error_eur": -296.540126,
+      "mean_absolute_error_eur": 626.508412,
+      "root_mean_squared_error_eur": 693.144168
+    },
+    "parameters": {
+      "risk_aversion": 0.0,
+      "alpha": 0.05
+    },
+    "diagnostics": {
+      "num_products": 2,
+      "settlement_basis": "decision_schedule_repriced_on_settlement_market"
+    },
+    "products": [
+      {
+        "product_id": "day_ahead_2026_01_01",
+        "as_of": "2025-12-31T10:00:00Z",
+        "portfolio_name": "Merchant BESS 2h",
+        "method": "intrinsic",
+        "decision_market_name": "base",
+        "valuation_expected_value_eur": 3766.059604,
+        "valuation_risk_adjusted_value_eur": 3766.059604,
+        "cashflow_at_risk_eur": 3766.059604,
+        "conditional_value_at_risk_eur": 3766.059604,
+        "settled_cashflow_eur": 2843.011066,
+        "pricing_error_eur": -923.048539,
+        "absolute_error_eur": 923.048539,
+        "valuation_scenario_count": 1,
+        "diagnostics": {
+          "settlement_basis": "decision_schedule_repriced_on_settlement_market",
+          "settlement_caveat": "The dispatch schedule is selected from valuation-time data and is not re-optimized on settlement prices."
+        },
+        "settlement_dispatch": {
+          "portfolio_name": "Merchant BESS 2h",
+          "market_name": "day_ahead_2026_01_01_settlement",
+          "timestep_hours": 1.0,
+          "metrics": {
+            "total_cashflow_eur": 2843.011066,
+            "export_mwh": 46.368092,
+            "import_mwh": 53.916387,
+            "net_export_mwh": -7.548294,
+            "peak_export_mw": 46.368092,
+            "peak_import_mw": 49.603076,
+            "average_export_price_eur_per_mwh": 104.0,
+            "average_import_price_eur_per_mwh": 30.2
+          },
+          "assets": [
+            {
+              "asset_name": "merchant_2h",
+              "asset_type": "battery",
+              "total_cashflow_eur": 2843.011066,
+              "metadata": {
+                "capacity_mwh": 100.0,
+                "power_mw": 50.0,
+                "round_trip_efficiency": 0.86,
+                "initial_soc_mwh": 50.0,
+                "terminal_soc_mwh": 50.0,
+                "cycle_cost_eur_per_mwh": 3.5,
+                "throughput_mwh": 100.284479,
+                "equivalent_cycles": 0.501422,
+                "settlement_market_name": "day_ahead_2026_01_01_settlement",
+                "settlement_basis": "fixed_dispatch_schedule"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "product_id": "day_ahead_2026_01_02",
+        "as_of": "2026-01-01T10:00:00Z",
+        "portfolio_name": "Merchant BESS 2h",
+        "method": "intrinsic",
+        "decision_market_name": "base",
+        "valuation_expected_value_eur": 4658.914966,
+        "valuation_risk_adjusted_value_eur": 4658.914966,
+        "cashflow_at_risk_eur": 4658.914966,
+        "conditional_value_at_risk_eur": 4658.914966,
+        "settled_cashflow_eur": 4988.883252,
+        "pricing_error_eur": 329.968286,
+        "absolute_error_eur": 329.968286,
+        "valuation_scenario_count": 1,
+        "diagnostics": {
+          "settlement_basis": "decision_schedule_repriced_on_settlement_market",
+          "settlement_caveat": "The dispatch schedule is selected from valuation-time data and is not re-optimized on settlement prices."
+        },
+        "settlement_dispatch": {
+          "portfolio_name": "Merchant BESS 2h",
+          "market_name": "day_ahead_2026_01_02_settlement",
+          "timestep_hours": 1.0,
+          "metrics": {
+            "total_cashflow_eur": 4988.883252,
+            "export_mwh": 46.368092,
+            "import_mwh": 53.916387,
+            "net_export_mwh": -7.548294,
+            "peak_export_mw": 46.368092,
+            "peak_import_mw": 49.603076,
+            "average_export_price_eur_per_mwh": 142.0,
+            "average_import_price_eur_per_mwh": 23.08
+          },
+          "assets": [
+            {
+              "asset_name": "merchant_2h",
+              "asset_type": "battery",
+              "total_cashflow_eur": 4988.883252,
+              "metadata": {
+                "capacity_mwh": 100.0,
+                "power_mw": 50.0,
+                "round_trip_efficiency": 0.86,
+                "initial_soc_mwh": 50.0,
+                "terminal_soc_mwh": 50.0,
+                "cycle_cost_eur_per_mwh": 3.5,
+                "throughput_mwh": 100.284479,
+                "equivalent_cycles": 0.501422,
+                "settlement_market_name": "day_ahead_2026_01_02_settlement",
+                "settlement_basis": "fixed_dispatch_schedule"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
 }

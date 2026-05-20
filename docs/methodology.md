@@ -214,6 +214,36 @@ Wissenschaftliche Grenzen:
 Wenn RL oberhalb von Intrinsic liegt, ist das als Trainings-, Diskretisierungs-
 oder In-sample-Artefakt zu lesen, nicht als realisierbarer Uplift.
 
+## Historischer Settlement-Backtest
+
+Der Backtest trennt Valuation-Information und Realisierung:
+
+- `HistoricalMarketProduct` enthaelt einen Produktzeitpunkt `as_of`,
+  valuation-time Marktszenarien und eine spaetere Settlement-Preiskurve.
+- Die Pricing-Methode bewertet nur die valuation-time Szenarien.
+- Aus dem valuation-time Pricing wird genau eine Dispatch-Zeitreihe als
+  Entscheidungsschedule ausgewaehlt.
+- Diese feste Schedule wird gegen die Settlement-Preise abgerechnet.
+
+Formal:
+
+```text
+q_decision,t = dispatch(P_valuation,t | information at as_of)
+V_expected = E[V(q_decision under valuation scenarios)]
+V_settled = sum_t cashflow(q_decision,t, P_settlement,t)
+pricing_error = V_settled - V_expected
+```
+
+Wichtig: Der Backtest optimiert nicht ex post auf der Settlement-Preiskurve.
+Perfect-Foresight bleibt damit ein Bewertungsbenchmark fuer die
+Valuation-Kurve; der Settlement-Schritt prueft, was eine vorab gewaehlte
+Schedule auf realisierten Preisen wert gewesen waere.
+
+Die mitgelieferten Ergebnisse in `docs/analysis_results.json` nutzen eine
+synthetische Zwei-Produkt-Fixture (`examples/data/historical_products.csv`).
+Sie belegt den Daten- und Reporting-Flow, ist aber noch keine kalibrierte
+historische Marktstudie.
+
 ## Batterie-Dispatch
 
 Batterien werden ueber ein diskretes State-of-Charge-Gitter optimiert. Lade- und
@@ -243,4 +273,5 @@ Bei grobem `grid_points`-Gitter ist der Wert nur eine diskrete Approximation.
 - Keine Revenue-Stacking-Exklusivitaeten ueber Energie, Regelenergie und
   Flexibilitaetsprodukte.
 - Keine nichtlineare Batterie-Degradation oder Calendar Aging.
-- Keine kalibrierte Out-of-sample Validierung historischer Preisregime.
+- Historischer Backtest-Flow vorhanden, aber noch keine kalibrierte
+  Out-of-sample Validierung echter Preisregime.

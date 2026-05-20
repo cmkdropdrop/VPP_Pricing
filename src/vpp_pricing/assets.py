@@ -311,6 +311,7 @@ class BatteryStorage:
                 "round_trip_efficiency": self.round_trip_efficiency,
                 "initial_soc_mwh": states[initial_idx],
                 "terminal_soc_mwh": states[terminal_idx],
+                "cycle_cost_eur_per_mwh": self.cycle_cost_eur_per_mwh,
                 "throughput_mwh": round(throughput_mwh, 6),
                 "equivalent_cycles": round(
                     throughput_mwh / (2.0 * self.capacity_mwh), 6

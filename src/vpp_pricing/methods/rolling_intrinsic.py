@@ -218,6 +218,7 @@ def _rolling_dispatch_battery(
             "round_trip_efficiency": battery.round_trip_efficiency,
             "initial_soc_mwh": battery.initial_soc_mwh,
             "terminal_soc_mwh": round(soc, 6),
+            "cycle_cost_eur_per_mwh": battery.cycle_cost_eur_per_mwh,
             "window_hours": window_intervals * market.timestep_hours,
             "window_intervals": window_intervals,
             "throughput_mwh": round(throughput_mwh, 6),

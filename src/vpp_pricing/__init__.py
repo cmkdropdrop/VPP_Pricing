@@ -13,6 +13,14 @@ from vpp_pricing.assets import (
     RenewableAsset,
     create_asset,
 )
+from vpp_pricing.backtest import (
+    BacktestEntry,
+    BacktestResult,
+    HistoricalMarketProduct,
+    load_historical_market_csv,
+    run_backtest,
+    settle_dispatch_against_market,
+)
 from vpp_pricing.comparison import ComparisonResult, compare_methods
 from vpp_pricing.market import MarketData, load_market_csv, validate_market_scenarios
 from vpp_pricing.methods import (
@@ -47,12 +55,15 @@ from vpp_pricing.validation import (
 
 __all__ = [
     "BatteryStorage",
+    "BacktestEntry",
+    "BacktestResult",
     "CashflowRiskMetrics",
     "ComparisonResult",
     "DispatchableGenerator",
     "FixedLoad",
     "FlexibleLoad",
     "GANPricing",
+    "HistoricalMarketProduct",
     "IntrinsicPricing",
     "MarketData",
     "MonteCarloPricing",
@@ -74,9 +85,12 @@ __all__ = [
     "get_method",
     "get_practical_approach",
     "list_practical_approaches",
+    "load_historical_market_csv",
     "load_market_csv",
     "lower_tail_support",
     "price_portfolio",
+    "run_backtest",
+    "settle_dispatch_against_market",
     "validate_portfolio_and_markets",
     "validate_market_scenarios",
 ]

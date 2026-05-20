@@ -4,7 +4,8 @@ Dieses Dokument vergleicht die im Repo implementierten Methoden mit
 wissenschaftlichen Veroeffentlichungen aus Deutschland bzw. mit direktem
 deutschem Strommarktbezug. Der Vergleich ist bewusst methodisch formuliert:
 Die Beispielergebnisse in `docs/analysis_results.json` sind synthetische
-Szenario-Analysen und keine kalibrierte Backtest-Studie historischer EPEX- oder
+Szenario-Analysen plus eine kleine synthetische Settlement-Backtest-Fixture.
+Sie sind keine kalibrierte Backtest-Studie historischer EPEX- oder
 Regelleistungsdaten.
 
 ## Einordnung der Repo-Ergebnisse
@@ -21,6 +22,7 @@ Die folgenden Zahlen stammen aus dem reproduzierbaren Lauf
 | Demand Response | Intrinsic -8,512 EUR/Tag, Rolling 84.9% | Lastdominierter VPP-Fall; Capture Ratio ist sign-aware fuer Kostenportfolios |
 | Merchant BESS, 100 MWh / 50 MW | Intrinsic 9,213 EUR/Tag | Speicher-Stressfall, ca. 67,257 EUR/MW-Jahr annualisiert, wenn dieser Beispieltag repraesentativ waere |
 | Merchant BESS | MC 12,162 EUR/Tag, 132.0% Capture | Sensitivitaet gegen synthetische Pfadvolatilitaet, kein executable uplift |
+| Historical Backtest | MAE 627 EUR, RMSE 693 EUR auf 2 synthetischen Produkten | Schedule-Settlement-Workflow, keine historische Performance-Studie |
 | RL-Baseline | Batterie-only tabellarisches Q-Learning | Zusatzbaseline fuer eine Flex-Komponente, kein VPP-weites Steuerungsmodell |
 
 Die annualisierte Merchant-BESS-Zahl ist nur eine Skalierung des Speicher-
@@ -89,6 +91,7 @@ keine Grid Fees und keine Revenue-Stacking-Restriktionen enthaelt.
 ## Konkrete methodische Anschlussarbeiten
 
 1. **Historischer deutscher Backtest**
+   Der technische Produkt-/Settlement-Flow ist vorhanden. Naechster Schritt:
    EPEX Day-Ahead, Intraday Auction und Continuous Intraday laden und die
    Beispielportfolios auf echte 2020-2025-Zeitreihen anwenden.
 

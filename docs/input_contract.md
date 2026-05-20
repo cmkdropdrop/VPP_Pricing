@@ -35,6 +35,32 @@ Optionale Spalten:
 Wenn Wahrscheinlichkeiten nicht auf 1.0 summieren, werden sie fuer die
 Risikometriken normalisiert. Wenn alle Gewichte null sind, wird gleichgewichtet.
 
+## Historical Market CSV
+
+`vpp-price backtest` nutzt ein Produkt-CSV, das valuation-time Preise und
+Settlement-Preise in derselben Datei verbindet.
+
+Pflichtspalten:
+
+| Spalte | Bedeutung |
+|---|---|
+| `product_id` | Historisches Produkt, z. B. ein Day-ahead-Lieferprodukt. |
+| `as_of` | Zeitpunkt, zu dem die Bewertung/Schedule-Entscheidung getroffen wird. |
+| `timestamp` | Lieferintervall. Muss je Produkt ueber Valuation und Settlement identisch sein. |
+| `valuation_price_eur_per_mwh` | Preis oder Forecast, der zur Bewertungszeit verfuegbar ist. |
+| `settlement_price_eur_per_mwh` | Spaeter realisierter Abrechnungspreis. |
+
+Optionale Spalten:
+
+| Spalte | Bedeutung |
+|---|---|
+| `scenario` | Valuation-Szenarioname je Produkt. Ohne diese Spalte wird `base` verwendet. |
+| `probability` | Szenariogewicht je Produkt/Szenario. Innerhalb eines Szenarios konstant. |
+
+Der Backtest waehlt eine Dispatch-Schedule aus den Valuation-Szenarien und
+rechnet diese feste Schedule gegen `settlement_price_eur_per_mwh` ab. Settlement
+ist damit eine Abrechnung, keine nachtraegliche Re-Optimierung.
+
 ## Portfolio JSON
 
 Root-Objekt:

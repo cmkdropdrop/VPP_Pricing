@@ -112,6 +112,37 @@ PRACTICAL_APPROACHES: tuple[PracticalPricingApproach, ...] = (
         ),
     ),
     PracticalPricingApproach(
+        id="historical_settlement_backtest",
+        name="Historical settlement backtest",
+        economic_role=(
+            "Model-validation layer that compares valuation-time schedules with "
+            "realized settlement cashflows."
+        ),
+        primary_users=(
+            "route-to-market analysts",
+            "model validation teams",
+            "risk control",
+            "portfolio managers",
+        ),
+        revenue_streams=("energy settlement", "imbalance reference", "model validation"),
+        markets=("day-ahead", "intraday reference curves", "settlement prices"),
+        decision_style="fixed schedule selected at valuation time and settled later",
+        implementation_status="implemented baseline",
+        implemented_method="backtest",
+        economic_relevance="high as validation infrastructure",
+        example_users=("route-to-market desks", "trading risk teams"),
+        mispricing_risks=(
+            "using settlement prices to re-optimise would create look-ahead bias",
+            "short synthetic fixtures cannot establish market performance",
+            "missing fees, liquidity, imbalance costs, and product constraints",
+        ),
+        validation_focus=(
+            "valuation error versus realized settlement",
+            "mean absolute error and RMSE by product",
+            "schedule feasibility and timestamp alignment",
+        ),
+    ),
+    PracticalPricingApproach(
         id="stochastic_merchant_bidding",
         name="Stochastic VPP scenario pricing / automated optimiser",
         economic_role=(
